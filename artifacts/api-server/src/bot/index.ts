@@ -13,6 +13,7 @@ import * as catalogo from "./commands/catalogo.js";
 import * as verAlbum from "./commands/ver-album.js";
 import * as figurinhas from "./commands/figurinhas.js";
 import * as ranking from "./commands/ranking.js";
+import * as proporTroca from "./commands/propor-troca.js";
 
 interface Command {
   data: SlashCommandOptionsOnlyBuilder;
@@ -26,6 +27,7 @@ const allCommands: Command[] = [
   verAlbum,
   figurinhas,
   ranking,
+  proporTroca,
 ];
 
 const commandMap = new Collection<string, Command>();
