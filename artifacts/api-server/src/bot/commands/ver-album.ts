@@ -41,10 +41,21 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const busca = interaction.options.getString("busca");
   const guildId = interaction.guildId!;
   const userId = alvoUser.id;
+  const isSelf = alvoUser.id === interaction.user.id;
 
   try {
-    // Buscar coleção do usuário com dados do catálogo
-    let colecaoQuery = db
+    const whereClause = busca
+      ? and(
+          eq(colecaoUsuarioTable.guildId, guildId),
+          eq(colecaoUsuarioTable.userId, userId),
+          ilike(catalogoFigurinhasTable.titulo, `%${busca}%`)
+        )
+      : and(
+          eq(colecaoUsuarioTable.guildId, guildId),
+          eq(colecaoUsuarioTable.userId, userId)
+        );
+
+    const figurinhas = await db
       .select({
         colecaoId: colecaoUsuarioTable.id,
         desbloqueadoEm: colecaoUsuarioTable.desbloqueadoEm,
@@ -60,18 +71,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         catalogoFigurinhasTable,
         eq(colecaoUsuarioTable.catalogoId, catalogoFigurinhasTable.id)
       )
-      .where(
-        and(
-          eq(colecaoUsuarioTable.guildId, guildId),
-          eq(colecaoUsuarioTable.userId, userId),
-          ...(busca ? [ilike(catalogoFigurinhasTable.titulo, `%${busca}%`)] : [])
-        )
-      )
+      .where(whereClause)
       .orderBy(catalogoFigurinhasTable.numero);
-
-    const figurinhas = await colecaoQuery;
-
-    const isSelf = alvoUser.id === interaction.user.id;
 
     if (figurinhas.length === 0) {
       if (busca) {
@@ -80,7 +81,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         );
       } else {
         await interaction.editReply(
-          `📭 ${isSelf ? "Você não tem" : `<@${userId}> não tem`} nenhuma figurinha ainda!\n\nUse **/desbloquear-figurinha** para começar sua coleção.`
+          `📭 ${isSelf ? "Você não tem" : `<@${userId}> não tem`} nenhuma figurinha ainda!\n\nUse **/abrir-pacote** para ganhar figurinhas.`
         );
       }
       return;
@@ -94,9 +95,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const emoji = RARIDADE_EMOJI[fig.raridade] ?? "⚪";
 
       return new EmbedBuilder()
-        .setTitle(
-          `📖 Álbum de ${alvoUser.username}${busca ? ` — busca: "${busca}"` : ""}`
-        )
+        .setTitle(`📖 Álbum de ${alvoUser.username}${busca ? ` — busca: "${busca}"` : ""}`)
         .setDescription(fig.descricao ?? "Sem descrição")
         .setImage(fig.imageUrl)
         .setColor(getRaridadeColor(fig.raridade))
@@ -109,9 +108,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           },
           { name: "Nº no catálogo", value: `#${fig.numero}`, inline: true }
         )
-        .setFooter({
-          text: `Figurinha ${idx + 1} de ${totalPages} • Desbloqueada em`,
-        })
+        .setFooter({ text: `Figurinha ${idx + 1} de ${totalPages} • Desbloqueada em` })
         .setTimestamp(fig.desbloqueadoEm);
     };
 

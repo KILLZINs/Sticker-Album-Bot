@@ -2,6 +2,7 @@ import { REST, Routes } from "discord.js";
 import { logger } from "./lib/logger.js";
 import * as criarFigurinha from "./commands/criar-figurinha.js";
 import * as desbloquear from "./commands/desbloquear.js";
+import * as abrirPacote from "./commands/abrir-pacote.js";
 import * as catalogo from "./commands/catalogo.js";
 import * as verAlbum from "./commands/ver-album.js";
 import * as figurinhas from "./commands/figurinhas.js";
@@ -11,6 +12,7 @@ import * as proporTroca from "./commands/propor-troca.js";
 const commands = [
   criarFigurinha.data,
   desbloquear.data,
+  abrirPacote.data,
   catalogo.data,
   verAlbum.data,
   figurinhas.data,

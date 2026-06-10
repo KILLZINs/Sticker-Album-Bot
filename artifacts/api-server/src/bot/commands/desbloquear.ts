@@ -2,10 +2,7 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ComponentType,
+  PermissionFlagsBits,
 } from "discord.js";
 import { db } from "@workspace/db";
 import { catalogoFigurinhasTable, colecaoUsuarioTable } from "@workspace/db";
@@ -22,11 +19,15 @@ const RARIDADE_EMOJI: Record<string, string> = {
 
 export const data = new SlashCommandBuilder()
   .setName("desbloquear-figurinha")
-  .setDescription("Desbloqueia uma figurinha do catálogo para o seu álbum")
+  .setDescription("(Admin) Desbloqueia uma figurinha do catálogo diretamente para um usuário")
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addUserOption((opt) =>
+    opt.setName("usuario").setDescription("Usuário que vai receber a figurinha").setRequired(true)
+  )
   .addIntegerOption((opt) =>
     opt
       .setName("numero")
-      .setDescription("Número da figurinha no catálogo (veja com /catalogo)")
+      .setDescription("Número da figurinha no catálogo")
       .setRequired(false)
       .setMinValue(1)
   )
@@ -39,128 +40,105 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  await interaction.deferReply();
+  await interaction.deferReply({ ephemeral: true });
 
+  const alvo = interaction.options.getUser("usuario", true);
   const numero = interaction.options.getInteger("numero");
   const busca = interaction.options.getString("busca");
   const guildId = interaction.guildId!;
-  const userId = interaction.user.id;
-  const username = interaction.user.username;
 
   if (!numero && !busca) {
-    await interaction.editReply(
-      "❌ Informe o **número** ou o **nome** da figurinha!\nUse **/catalogo** para ver todas as figurinhas disponíveis."
-    );
+    await interaction.editReply("❌ Informe o **número** ou o **nome** da figurinha!");
+    return;
+  }
+
+  if (alvo.bot) {
+    await interaction.editReply("❌ Não é possível dar figurinhas para bots!");
     return;
   }
 
   try {
-    // Buscar figurinha no catálogo
     let figurinha = null;
 
     if (numero) {
       const [found] = await db
         .select()
         .from(catalogoFigurinhasTable)
-        .where(
-          and(
-            eq(catalogoFigurinhasTable.guildId, guildId),
-            eq(catalogoFigurinhasTable.numero, numero)
-          )
-        )
+        .where(and(eq(catalogoFigurinhasTable.guildId, guildId), eq(catalogoFigurinhasTable.numero, numero)))
         .limit(1);
       figurinha = found ?? null;
     } else if (busca) {
       const results = await db
         .select()
         .from(catalogoFigurinhasTable)
-        .where(
-          and(
-            eq(catalogoFigurinhasTable.guildId, guildId),
-            ilike(catalogoFigurinhasTable.titulo, `%${busca}%`)
-          )
-        )
+        .where(and(eq(catalogoFigurinhasTable.guildId, guildId), ilike(catalogoFigurinhasTable.titulo, `%${busca}%`)))
         .limit(5);
 
       if (results.length === 0) {
-        await interaction.editReply(`🔍 Nenhuma figurinha encontrada com o nome **"${busca}"**.\nUse **/catalogo** para ver todas.`);
+        await interaction.editReply(`🔍 Nenhuma figurinha com o nome **"${busca}"** encontrada.`);
         return;
       }
-
-      if (results.length === 1) {
-        figurinha = results[0]!;
-      } else {
-        // Múltiplos resultados — mostrar lista para escolher
-        const lista = results
-          .map((f) => `${RARIDADE_EMOJI[f.raridade] ?? "⚪"} **#${f.numero}** ${f.titulo}`)
-          .join("\n");
-        await interaction.editReply(
-          `🔍 Encontrei **${results.length}** figurinhas com "${busca}":\n\n${lista}\n\nUse **/desbloquear-figurinha numero:<número>** para escolher uma específica.`
-        );
+      if (results.length > 1) {
+        const lista = results.map((f) => `**#${f.numero}** ${f.titulo}`).join("\n");
+        await interaction.editReply(`🔍 Múltiplos resultados:\n${lista}\n\nUse o **número** para ser mais específico.`);
         return;
       }
+      figurinha = results[0]!;
     }
 
     if (!figurinha) {
-      await interaction.editReply(
-        `❌ Figurinha ${numero ? `#${numero}` : `"${busca}"`} não encontrada no catálogo!\nUse **/catalogo** para ver todas.`
-      );
+      await interaction.editReply(`❌ Figurinha não encontrada no catálogo!`);
       return;
     }
 
-    // Verificar se o usuário já tem esta figurinha
-    const [jaTemFigurinha] = await db
+    const [jaTem] = await db
       .select()
       .from(colecaoUsuarioTable)
       .where(
         and(
           eq(colecaoUsuarioTable.guildId, guildId),
-          eq(colecaoUsuarioTable.userId, userId),
+          eq(colecaoUsuarioTable.userId, alvo.id),
           eq(colecaoUsuarioTable.catalogoId, figurinha.id)
         )
       )
       .limit(1);
 
-    if (jaTemFigurinha) {
-      const emoji = RARIDADE_EMOJI[figurinha.raridade] ?? "⚪";
-      await interaction.editReply(
-        `⚠️ Você já tem a figurinha **${emoji} ${figurinha.titulo}** no seu álbum!`
-      );
+    if (jaTem) {
+      await interaction.editReply(`⚠️ <@${alvo.id}> já tem a figurinha **${figurinha.titulo}**!`);
       return;
     }
 
-    // Desbloquear!
     await db.insert(colecaoUsuarioTable).values({
       guildId,
-      userId,
-      username,
+      userId: alvo.id,
+      username: alvo.username,
       catalogoId: figurinha.id,
     });
 
     const emoji = RARIDADE_EMOJI[figurinha.raridade] ?? "⚪";
+    await interaction.editReply(
+      `✅ Figurinha **${emoji} ${figurinha.titulo}** desbloqueada para <@${alvo.id}>!`
+    );
 
-    const embed = new EmbedBuilder()
-      .setTitle(`🎉 Figurinha desbloqueada!`)
-      .setDescription(`<@${userId}> adicionou **${emoji} ${figurinha.titulo}** ao seu álbum!`)
-      .setImage(figurinha.imageUrl)
-      .setColor(getRaridadeColor(figurinha.raridade))
-      .addFields(
-        { name: "Título", value: figurinha.titulo, inline: true },
-        { name: "Raridade", value: `${emoji} ${figurinha.raridade}`, inline: true },
-        { name: "Nº no catálogo", value: `#${figurinha.numero}`, inline: true }
-      )
-      .setFooter({ text: `Coleção de ${username}` })
-      .setTimestamp();
-
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.followUp({
+      ephemeral: false,
+      embeds: [
+        new EmbedBuilder()
+          .setTitle(`🎁 Figurinha concedida por um admin!`)
+          .setDescription(`<@${alvo.id}> recebeu a figurinha **${emoji} ${figurinha.titulo}**!`)
+          .setImage(figurinha.imageUrl)
+          .setColor(getRaridadeColor(figurinha.raridade))
+          .setFooter({ text: `Concedida por ${interaction.user.username}` })
+          .setTimestamp(),
+      ],
+    });
   } catch (err: any) {
-    // Erro de constraint única (já tem a figurinha — race condition)
     if (err?.code === "23505") {
-      await interaction.editReply("⚠️ Você já tem essa figurinha no álbum!");
+      await interaction.editReply("⚠️ Esse usuário já tem essa figurinha!");
       return;
     }
-    logger.error({ err }, "Erro ao desbloquear figurinha");
-    await interaction.editReply("❌ Erro ao desbloquear a figurinha. Tente novamente.");
+    logger.error({ err }, "Erro ao desbloquear figurinha (admin)");
+    await interaction.editReply("❌ Erro ao desbloquear. Tente novamente.");
   }
 }
 

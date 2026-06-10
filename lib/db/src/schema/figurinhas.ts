@@ -32,6 +32,14 @@ export const colecaoUsuarioTable = pgTable(
   (t) => [unique("colecao_unica").on(t.guildId, t.userId, t.catalogoId)]
 );
 
+// Controle de pacotinhos diários
+export const pacotesDiariosTable = pgTable("pacotes_diarios", {
+  id: serial("id").primaryKey(),
+  guildId: text("guild_id").notNull(),
+  userId: text("user_id").notNull(),
+  ultimaAbertura: timestamp("ultima_abertura").notNull().defaultNow(),
+});
+
 // Tabelas legadas — mantidas para compatibilidade
 export const figurinhasTable = pgTable("figurinhas", {
   id: serial("id").primaryKey(),

@@ -23,11 +23,7 @@ export const data = new SlashCommandBuilder()
     opt.setName("usuario").setDescription("Ver as figurinhas de outro usuário").setRequired(false)
   )
   .addStringOption((opt) =>
-    opt
-      .setName("busca")
-      .setDescription("Filtrar por nome")
-      .setRequired(false)
-      .setMaxLength(50)
+    opt.setName("busca").setDescription("Filtrar por nome").setRequired(false).setMaxLength(50)
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
@@ -40,25 +36,29 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const isSelf = alvoUser.id === interaction.user.id;
 
   try {
+    const whereClause = busca
+      ? and(
+          eq(colecaoUsuarioTable.guildId, guildId),
+          eq(colecaoUsuarioTable.userId, userId),
+          ilike(catalogoFigurinhasTable.titulo, `%${busca}%`)
+        )
+      : and(
+          eq(colecaoUsuarioTable.guildId, guildId),
+          eq(colecaoUsuarioTable.userId, userId)
+        );
+
     const figurinhas = await db
       .select({
         numero: catalogoFigurinhasTable.numero,
         titulo: catalogoFigurinhasTable.titulo,
         raridade: catalogoFigurinhasTable.raridade,
-        desbloqueadoEm: colecaoUsuarioTable.desbloqueadoEm,
       })
       .from(colecaoUsuarioTable)
       .innerJoin(
         catalogoFigurinhasTable,
         eq(colecaoUsuarioTable.catalogoId, catalogoFigurinhasTable.id)
       )
-      .where(
-        and(
-          eq(colecaoUsuarioTable.guildId, guildId),
-          eq(colecaoUsuarioTable.userId, userId),
-          ...(busca ? [ilike(catalogoFigurinhasTable.titulo, `%${busca}%`)] : [])
-        )
-      )
+      .where(whereClause)
       .orderBy(catalogoFigurinhasTable.numero);
 
     if (figurinhas.length === 0) {
@@ -68,7 +68,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         );
       } else {
         await interaction.editReply(
-          `📭 ${isSelf ? "Você não tem" : `<@${userId}> não tem`} nenhuma figurinha ainda!\n\nUse **/desbloquear-figurinha** para começar.`
+          `📭 ${isSelf ? "Você não tem" : `<@${userId}> não tem`} nenhuma figurinha ainda!\n\nUse **/abrir-pacote** para começar.`
         );
       }
       return;
@@ -103,10 +103,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const maxCampos = Math.min(chunks.length, 5);
     for (let i = 0; i < maxCampos; i++) {
       embed.addFields({
-        name:
-          chunks.length > 1
-            ? `Lista (${i * 20 + 1}–${Math.min((i + 1) * 20, figurinhas.length)})`
-            : "Lista",
+        name: chunks.length > 1 ? `Lista (${i * 20 + 1}–${Math.min((i + 1) * 20, figurinhas.length)})` : "Lista",
         value: chunks[i]!,
         inline: false,
       });
