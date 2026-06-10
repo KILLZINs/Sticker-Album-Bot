@@ -4,13 +4,13 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import { db } from "@workspace/db";
-import { albumsTable, figurinhasTable } from "@workspace/db";
+import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
 import { eq, desc, count } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 
 export const data = new SlashCommandBuilder()
   .setName("ranking")
-  .setDescription("Mostra o ranking de quem tem mais figurinhas no servidor");
+  .setDescription("Mostra o ranking de quem tem mais figurinhas desbloqueadas");
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
@@ -18,41 +18,58 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const guildId = interaction.guildId!;
 
   try {
+    // Total de figurinhas no catálogo
+    const [{ totalCatalogo }] = await db
+      .select({ totalCatalogo: count() })
+      .from(catalogoFigurinhasTable)
+      .where(eq(catalogoFigurinhasTable.guildId, guildId));
+
+    // Top 10 por figurinhas desbloqueadas
     const top = await db
-      .select()
-      .from(albumsTable)
-      .where(eq(albumsTable.guildId, guildId))
-      .orderBy(desc(albumsTable.totalFigurinhas))
+      .select({
+        userId: colecaoUsuarioTable.userId,
+        username: colecaoUsuarioTable.username,
+        total: count(),
+      })
+      .from(colecaoUsuarioTable)
+      .where(eq(colecaoUsuarioTable.guildId, guildId))
+      .groupBy(colecaoUsuarioTable.userId, colecaoUsuarioTable.username)
+      .orderBy(desc(count()))
       .limit(10);
 
     if (top.length === 0) {
       await interaction.editReply(
-        "📭 Nenhum álbum encontrado neste servidor ainda!\n\nUse **/adicionar-figurinha** para começar."
+        "📭 Ninguém desbloqueou figurinhas ainda!\n\nUse **/desbloquear-figurinha** para começar."
       );
       return;
     }
 
     const medalhas = ["🥇", "🥈", "🥉"];
 
-    const linhas = top.map((album, i) => {
+    const linhas = top.map((entry, i) => {
       const pos = medalhas[i] ?? `**${i + 1}.**`;
-      const voce = album.userId === interaction.user.id ? " 👈" : "";
-      return `${pos} <@${album.userId}> — **${album.totalFigurinhas}** figurinha${album.totalFigurinhas !== 1 ? "s" : ""}${voce}`;
+      const voce = entry.userId === interaction.user.id ? " 👈" : "";
+      const progresso = totalCatalogo > 0 ? Math.round((entry.total / totalCatalogo) * 100) : 0;
+      return `${pos} <@${entry.userId}> — **${entry.total}**/${totalCatalogo} (${progresso}%)${voce}`;
     });
 
-    // Posição do usuário atual se não estiver no top 10
+    // Posição do usuário atual se fora do top 10
     let posicaoMinha = "";
-    const meuAlbum = top.find((a) => a.userId === interaction.user.id);
-    if (!meuAlbum) {
+    const meuEntry = top.find((e) => e.userId === interaction.user.id);
+    if (!meuEntry) {
       const todos = await db
-        .select()
-        .from(albumsTable)
-        .where(eq(albumsTable.guildId, guildId))
-        .orderBy(desc(albumsTable.totalFigurinhas));
+        .select({
+          userId: colecaoUsuarioTable.userId,
+          total: count(),
+        })
+        .from(colecaoUsuarioTable)
+        .where(eq(colecaoUsuarioTable.guildId, guildId))
+        .groupBy(colecaoUsuarioTable.userId)
+        .orderBy(desc(count()));
 
-      const meuIdx = todos.findIndex((a) => a.userId === interaction.user.id);
+      const meuIdx = todos.findIndex((e) => e.userId === interaction.user.id);
       if (meuIdx >= 0) {
-        posicaoMinha = `\n\n📍 Sua posição: **${meuIdx + 1}º** com **${todos[meuIdx]!.totalFigurinhas}** figurinha${todos[meuIdx]!.totalFigurinhas !== 1 ? "s" : ""}`;
+        posicaoMinha = `\n\n📍 Sua posição: **${meuIdx + 1}º** com **${todos[meuIdx]!.total}** figurinha${todos[meuIdx]!.total !== 1 ? "s" : ""}`;
       }
     }
 
@@ -60,7 +77,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .setTitle("🏆 Ranking do Álbum de Figurinhas")
       .setColor(0xf1c40f)
       .setDescription(linhas.join("\n") + posicaoMinha)
-      .setFooter({ text: `Top ${top.length} colecionadores do servidor` })
+      .setFooter({ text: `Top ${top.length} colecionadores • Catálogo: ${totalCatalogo} figurinha${totalCatalogo !== 1 ? "s" : ""}` })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });

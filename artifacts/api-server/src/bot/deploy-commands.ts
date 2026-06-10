@@ -1,21 +1,19 @@
 import { REST, Routes } from "discord.js";
 import { logger } from "./lib/logger.js";
-import * as adicionar from "./commands/adicionar.js";
+import * as criarFigurinha from "./commands/criar-figurinha.js";
+import * as desbloquear from "./commands/desbloquear.js";
+import * as catalogo from "./commands/catalogo.js";
 import * as verAlbum from "./commands/ver-album.js";
 import * as figurinhas from "./commands/figurinhas.js";
-import * as darFigurinha from "./commands/dar-figurinha.js";
-import * as repetidas from "./commands/repetidas.js";
 import * as ranking from "./commands/ranking.js";
-import * as remover from "./commands/remover.js";
 
 const commands = [
-  adicionar.data,
+  criarFigurinha.data,
+  desbloquear.data,
+  catalogo.data,
   verAlbum.data,
   figurinhas.data,
-  darFigurinha.data,
-  repetidas.data,
   ranking.data,
-  remover.data,
 ].map((cmd) => cmd.toJSON());
 
 export async function deployCommands() {
