@@ -11,6 +11,7 @@ import {
 } from "@workspace/db";
 import { eq, and, notInArray } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
+import { verificarConquistas, anunciarConquistas } from "../lib/conquistas.js";
 
 // Quantas figurinhas por pacote
 const FIGURINHAS_POR_PACOTE = 3;
@@ -169,6 +170,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
+
+    // Verificar e anunciar conquistas
+    const novas = await verificarConquistas(guildId, userId, username, {
+      abreuPacote: true,
+      figurinhasNovas: sorteadas.map((f) => ({ raridade: f.raridade })),
+    });
+    await anunciarConquistas(interaction.channelId, userId, novas, interaction.client);
   } catch (err) {
     logger.error({ err }, "Erro ao abrir pacote");
     await interaction.editReply("❌ Erro ao abrir o pacotinho. Tente novamente.");

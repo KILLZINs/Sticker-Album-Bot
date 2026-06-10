@@ -12,6 +12,7 @@ import { db } from "@workspace/db";
 import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
+import { verificarConquistas, anunciarConquistas } from "../lib/conquistas.js";
 
 const RARIDADE_EMOJI: Record<string, string> = {
   comum: "⚪",
@@ -308,6 +309,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           embeds: [embedSucesso],
           components: [],
         });
+
+        // Verificar conquistas para ambos
+        const [novasMeu, novasDele] = await Promise.all([
+          verificarConquistas(guildId, meuId, interaction.user.username, { fezTroca: true }),
+          verificarConquistas(guildId, destino.id, destino.username, { fezTroca: true }),
+        ]);
+        const channelId = btnInteraction.channelId;
+        await anunciarConquistas(channelId, meuId, novasMeu, btnInteraction.client);
+        await anunciarConquistas(channelId, destino.id, novasDele, btnInteraction.client);
       } catch (err) {
         logger.error({ err }, "Erro ao realizar troca");
         await btnInteraction.update({

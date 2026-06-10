@@ -8,6 +8,7 @@ import * as verAlbum from "./commands/ver-album.js";
 import * as figurinhas from "./commands/figurinhas.js";
 import * as ranking from "./commands/ranking.js";
 import * as proporTroca from "./commands/propor-troca.js";
+import * as conquistas from "./commands/conquistas.js";
 
 const commands = [
   criarFigurinha.data,
@@ -18,6 +19,7 @@ const commands = [
   figurinhas.data,
   ranking.data,
   proporTroca.data,
+  conquistas.data,
 ].map((cmd) => cmd.toJSON());
 
 export async function deployCommands() {

@@ -32,6 +32,20 @@ export const colecaoUsuarioTable = pgTable(
   (t) => [unique("colecao_unica").on(t.guildId, t.userId, t.catalogoId)]
 );
 
+// Conquistas/badges desbloqueadas por usuário
+export const conquistasUsuarioTable = pgTable(
+  "conquistas_usuario",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    userId: text("user_id").notNull(),
+    username: text("username").notNull(),
+    conquistaId: text("conquista_id").notNull(),
+    ganhoEm: timestamp("ganho_em").notNull().defaultNow(),
+  },
+  (t) => [unique("conquista_unica").on(t.guildId, t.userId, t.conquistaId)]
+);
+
 // Controle de pacotinhos diários
 export const pacotesDiariosTable = pgTable("pacotes_diarios", {
   id: serial("id").primaryKey(),
