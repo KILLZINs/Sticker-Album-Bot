@@ -34,7 +34,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         `🔁 Nível Rebirth: **${nivelNome}**\n` +
         descontoTexto
     )
-    .setColor(0xf1c40f)
+    .setColor(0x470f78)
     .setThumbnail(interaction.user.displayAvatarURL())
     .setTimestamp();
 
