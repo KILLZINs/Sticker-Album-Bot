@@ -37,6 +37,30 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const saldo = await getSaldo(guildId, userId);
     const nivelAtualNome = NIVEL_NOME[nivel] ?? "Normal";
 
+    const figurinhas = await db
+      .select({ id: colecaoUsuarioTable.id })
+      .from(colecaoUsuarioTable)
+      .where(
+        and(
+          eq(colecaoUsuarioTable.guildId, guildId),
+          eq(colecaoUsuarioTable.userId, userId)
+        )
+      )
+      .limit(1);
+
+    if (figurinhas.length === 0) {
+      const embed = new EmbedBuilder()
+        .setTitle("❌ Álbum vazio!")
+        .setDescription(
+          `Você precisa ter pelo menos **1 figurinha** no seu álbum para fazer o Rebirth.\n\n` +
+            `Abra pacotinhos e colecione figurinhas antes de tentar subir de nível! 📦`
+        )
+        .setColor(0xe74c3c)
+        .setTimestamp();
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+
     if (nivel >= MAX_NIVEL) {
       const embed = new EmbedBuilder()
         .setTitle("🥇 Nível Máximo Atingido!")
