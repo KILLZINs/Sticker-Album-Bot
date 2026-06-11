@@ -74,16 +74,32 @@ export async function deductMoedas(
   userId: string,
   username: string,
   amount: number
-): Promise<void> {
+): Promise<number> {
+  // Ensure the row exists before attempting the atomic deduction
   await upsertRow(guildId, userId, username);
-  const saldo = await getSaldo(guildId, userId);
-  if (saldo < amount) {
-    throw new Error(`Saldo insuficiente: tem ${saldo}, precisa de ${amount}`);
-  }
-  await db
+
+  // Single atomic UPDATE: only succeeds when saldo >= amount, preventing
+  // race conditions where two concurrent purchases both pass a pre-check.
+  // Returns the new saldo so callers don't need a second round-trip.
+  const [updated] = await db
     .update(moedasUsuarioTable)
     .set({ saldo: sql`${moedasUsuarioTable.saldo} - ${amount}` })
-    .where(and(eq(moedasUsuarioTable.guildId, guildId), eq(moedasUsuarioTable.userId, userId)));
+    .where(
+      and(
+        eq(moedasUsuarioTable.guildId, guildId),
+        eq(moedasUsuarioTable.userId, userId),
+        sql`${moedasUsuarioTable.saldo} >= ${amount}`
+      )
+    )
+    .returning({ novoSaldo: moedasUsuarioTable.saldo });
+
+  if (!updated) {
+    // Row was not updated — balance was insufficient at the moment of the write
+    const saldo = await getSaldo(guildId, userId);
+    throw new Error(`Saldo insuficiente: tem ${saldo}, precisa de ${amount}`);
+  }
+
+  return updated.novoSaldo;
 }
 
 export async function setNivelRebirth(

@@ -89,8 +89,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    // Deduzir moedas antes de sortear
-    await deductMoedas(guildId, userId, username, preco);
+    // Deduzir moedas antes de sortear — atomic deduction returns the real new balance
+    const novoSaldo = await deductMoedas(guildId, userId, username, preco);
 
     // Sortear com peso por raridade (duplicatas permitidas — pool completo a cada sorteio)
     const sorteadas = sortearComPeso(catalogo, pack.figurinhas);
@@ -106,8 +106,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         : melhor,
       sorteadas[0]!
     );
-
-    const novoSaldo = saldo - preco;
     const linhas = sorteadas.map((fig) => {
       const emoji = RARIDADE_EMOJI[fig.raridade] ?? "⚪";
       return `${emoji} **${fig.titulo}** — ${fig.raridade}`;
