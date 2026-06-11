@@ -67,6 +67,11 @@ export async function addMoedas(
     })
     .returning({ novoSaldo: moedasUsuarioTable.saldo });
 
+  if (!updated) {
+    // Fallback: RETURNING yielded no row — fetch the current balance directly
+    return getSaldo(guildId, userId);
+  }
+
   return updated.novoSaldo;
 }
 
