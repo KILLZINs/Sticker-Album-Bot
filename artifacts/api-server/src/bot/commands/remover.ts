@@ -4,17 +4,17 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import { db } from "@workspace/db";
-import { figurinhasTable, albumsTable } from "@workspace/db";
+import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 
 export const data = new SlashCommandBuilder()
   .setName("remover-figurinha")
-  .setDescription("Remove uma figurinha do seu álbum")
+  .setDescription("Remove uma cópia de uma figurinha do seu álbum pelo número do catálogo")
   .addIntegerOption((opt) =>
     opt
       .setName("numero")
-      .setDescription("Número da figurinha a remover")
+      .setDescription("Número da figurinha no catálogo (use /catalogo para ver)")
       .setRequired(true)
       .setMinValue(1)
   );
@@ -27,58 +27,55 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const userId = interaction.user.id;
 
   try {
-    const [figurinha] = await db
+    // Buscar a figurinha no catálogo pelo número
+    const [catalogo] = await db
       .select()
-      .from(figurinhasTable)
+      .from(catalogoFigurinhasTable)
       .where(
         and(
-          eq(figurinhasTable.guildId, guildId),
-          eq(figurinhasTable.ownerId, userId),
-          eq(figurinhasTable.numero, numero)
+          eq(catalogoFigurinhasTable.guildId, guildId),
+          eq(catalogoFigurinhasTable.numero, numero)
         )
       )
       .limit(1);
 
-    if (!figurinha) {
-      await interaction.editReply(`❌ Você não tem uma figurinha com o número **#${numero}**!`);
+    if (!catalogo) {
+      await interaction.editReply(
+        `❌ Não existe figurinha com o número **#${numero}** no catálogo deste servidor!`
+      );
       return;
     }
 
-    await db
-      .delete(figurinhasTable)
-      .where(eq(figurinhasTable.id, figurinha.id));
-
-    // Atualizar total do álbum
-    const album = await db
+    // Buscar uma cópia no álbum do usuário
+    const [entrada] = await db
       .select()
-      .from(albumsTable)
+      .from(colecaoUsuarioTable)
       .where(
         and(
-          eq(albumsTable.guildId, guildId),
-          eq(albumsTable.userId, userId)
+          eq(colecaoUsuarioTable.guildId, guildId),
+          eq(colecaoUsuarioTable.userId, userId),
+          eq(colecaoUsuarioTable.catalogoId, catalogo.id)
         )
       )
       .limit(1);
 
-    if (album[0]) {
-      await db
-        .update(albumsTable)
-        .set({
-          totalFigurinhas: Math.max(0, album[0].totalFigurinhas - 1),
-          atualizadoEm: new Date(),
-        })
-        .where(
-          and(
-            eq(albumsTable.guildId, guildId),
-            eq(albumsTable.userId, userId)
-          )
-        );
+    if (!entrada) {
+      await interaction.editReply(
+        `❌ Você não tem a figurinha **#${numero} — ${catalogo.titulo}** no seu álbum!`
+      );
+      return;
     }
+
+    // Remover apenas esta cópia (pelo id da linha)
+    await db.delete(colecaoUsuarioTable).where(eq(colecaoUsuarioTable.id, entrada.id));
 
     const embed = new EmbedBuilder()
       .setTitle("🗑️ Figurinha removida")
-      .setDescription(`A figurinha **#${figurinha.numero} — ${figurinha.titulo}** foi removida do seu álbum.`)
-      .setThumbnail(figurinha.imageUrl)
+      .setDescription(
+        `A figurinha **#${catalogo.numero} — ${catalogo.titulo}** foi removida do seu álbum.\n\n` +
+          `*Se você tiver outras cópias, elas permanecem.*`
+      )
+      .setThumbnail(catalogo.imageUrl)
       .setColor(0xed4245)
       .setTimestamp();
 

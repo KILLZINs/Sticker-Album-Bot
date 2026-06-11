@@ -44,7 +44,7 @@ export const CONQUISTAS: Record<string, Conquista> = {
     nome: "Colecionador Lendário",
     descricao: "Tem 50 figurinhas no álbum.",
     emoji: "💎",
-    cor: 0x9b59b6,
+    cor: 0x470f78,
   },
   album_completo: {
     id: "album_completo",
@@ -79,6 +79,20 @@ export const CONQUISTAS: Record<string, Conquista> = {
     nome: "Sortudo!",
     descricao: "Ganhou uma figurinha Lendária.",
     emoji: "🌟",
+    cor: 0xf1c40f,
+  },
+  rebirth_prata: {
+    id: "rebirth_prata",
+    nome: "Renascido — Prata",
+    descricao: "Fez Rebirth para o nível Prata.",
+    emoji: "🥈",
+    cor: 0xc0c0c0,
+  },
+  rebirth_ouro: {
+    id: "rebirth_ouro",
+    nome: "Renascido — Ouro",
+    descricao: "Fez Rebirth para o nível Ouro.",
+    emoji: "🥇",
     cor: 0xf1c40f,
   },
   primeira_troca: {

@@ -17,19 +17,30 @@ export const catalogoFigurinhasTable = pgTable("catalogo_figurinhas", {
 });
 
 // Coleção de cada usuário — figurinhas desbloqueadas do catálogo
-export const colecaoUsuarioTable = pgTable(
-  "colecao_usuario",
+// Sem unique constraint — figurinhas repetidas são permitidas!
+export const colecaoUsuarioTable = pgTable("colecao_usuario", {
+  id: serial("id").primaryKey(),
+  guildId: text("guild_id").notNull(),
+  userId: text("user_id").notNull(),
+  username: text("username").notNull(),
+  catalogoId: integer("catalogo_id")
+    .notNull()
+    .references(() => catalogoFigurinhasTable.id, { onDelete: "cascade" }),
+  desbloqueadoEm: timestamp("desbloqueado_em").notNull().defaultNow(),
+});
+
+// Moedas e nível de rebirth por usuário
+export const moedasUsuarioTable = pgTable(
+  "moedas_usuario",
   {
     id: serial("id").primaryKey(),
     guildId: text("guild_id").notNull(),
     userId: text("user_id").notNull(),
     username: text("username").notNull(),
-    catalogoId: integer("catalogo_id")
-      .notNull()
-      .references(() => catalogoFigurinhasTable.id, { onDelete: "cascade" }),
-    desbloqueadoEm: timestamp("desbloqueado_em").notNull().defaultNow(),
+    saldo: integer("saldo").notNull().default(0),
+    nivelRebirth: integer("nivel_rebirth").notNull().default(0),
   },
-  (t) => [unique("colecao_unica").on(t.guildId, t.userId, t.catalogoId)]
+  (t) => [unique("moedas_unicas").on(t.guildId, t.userId)]
 );
 
 // Conquistas/badges desbloqueadas por usuário
@@ -46,7 +57,7 @@ export const conquistasUsuarioTable = pgTable(
   (t) => [unique("conquista_unica").on(t.guildId, t.userId, t.conquistaId)]
 );
 
-// Controle de pacotinhos diários
+// Controle de pacotinhos diários (mantida para compatibilidade)
 export const pacotesDiariosTable = pgTable("pacotes_diarios", {
   id: serial("id").primaryKey(),
   guildId: text("guild_id").notNull(),

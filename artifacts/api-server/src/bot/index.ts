@@ -7,6 +7,7 @@ import {
 } from "discord.js";
 import { logger } from "./lib/logger.js";
 import { deployCommands } from "./deploy-commands.js";
+import { addMoedas } from "./lib/moedas.js";
 import * as criarFigurinha from "./commands/criar-figurinha.js";
 import * as desbloquear from "./commands/desbloquear.js";
 import * as abrirPacote from "./commands/abrir-pacote.js";
@@ -16,6 +17,10 @@ import * as figurinhas from "./commands/figurinhas.js";
 import * as ranking from "./commands/ranking.js";
 import * as proporTroca from "./commands/propor-troca.js";
 import * as conquistas from "./commands/conquistas.js";
+import * as rebirth from "./commands/rebirth.js";
+import * as removerFigurinha from "./commands/remover.js";
+import * as apagarFigurinha from "./commands/apagar-figurinha.js";
+import * as help from "./commands/help.js";
 
 interface Command {
   data: SlashCommandOptionsOnlyBuilder;
@@ -32,6 +37,10 @@ const allCommands: Command[] = [
   ranking,
   proporTroca,
   conquistas,
+  rebirth,
+  removerFigurinha,
+  apagarFigurinha,
+  help,
 ];
 
 const commandMap = new Collection<string, Command>();
@@ -50,11 +59,25 @@ export async function startBot() {
   await deployCommands();
 
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds],
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages,
+      // MessageContent é um privileged intent — precisa ser ativado no Discord Developer Portal
+      // Bot Settings → Privileged Gateway Intents → Message Content Intent
+      GatewayIntentBits.MessageContent,
+    ],
   });
 
   client.once("ready", (c) => {
     logger.info({ tag: c.user.tag }, "🤖 Bot do Álbum de Figurinhas online!");
+  });
+
+  // Listener de mensagens — +2 moedas por mensagem com mais de 8 caracteres
+  client.on("messageCreate", async (message) => {
+    if (message.author.bot) return;
+    if (!message.guildId) return;
+    if (message.content.length <= 8) return;
+    await addMoedas(message.guildId, message.author.id, message.author.username, 2);
   });
 
   client.on("interactionCreate", async (interaction) => {

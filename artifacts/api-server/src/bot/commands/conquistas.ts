@@ -60,7 +60,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const embed = new EmbedBuilder()
       .setTitle(`🏅 Conquistas de ${alvoUser.username}`)
-      .setColor(0xf1c40f)
+      .setColor(0x470f78)
       .setThumbnail(alvoUser.displayAvatarURL())
       .setDescription(
         `**Progresso:** ${totalDesbloqueadas}/${totalPossiveis} (${progresso}%)\n\`${barra}\``

@@ -9,6 +9,10 @@ import * as figurinhas from "./commands/figurinhas.js";
 import * as ranking from "./commands/ranking.js";
 import * as proporTroca from "./commands/propor-troca.js";
 import * as conquistas from "./commands/conquistas.js";
+import * as rebirth from "./commands/rebirth.js";
+import * as removerFigurinha from "./commands/remover.js";
+import * as apagarFigurinha from "./commands/apagar-figurinha.js";
+import * as help from "./commands/help.js";
 
 const commands = [
   criarFigurinha.data,
@@ -20,6 +24,10 @@ const commands = [
   ranking.data,
   proporTroca.data,
   conquistas.data,
+  rebirth.data,
+  removerFigurinha.data,
+  apagarFigurinha.data,
+  help.data,
 ].map((cmd) => cmd.toJSON());
 
 export async function deployCommands() {
