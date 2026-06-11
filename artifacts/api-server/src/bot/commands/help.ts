@@ -51,7 +51,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         value:
           "`/criar-figurinha` — Cria uma figurinha no catálogo\n" +
           "`/desbloquear-figurinha` — Desbloqueia figurinha para um usuário\n" +
-          "`/apagar-figurinha` — Apaga figurinha do catálogo permanentemente",
+          "`/apagar-figurinha` — Apaga figurinha do catálogo permanentemente\n" +
+          "`/forcereset @usuário` — Reseta dados do usuário (rebirth, figurinhas, etc.) mantendo dados de admin intactos",
         inline: false,
       }
     )

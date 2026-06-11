@@ -15,6 +15,7 @@ import * as apagarFigurinha from "./commands/apagar-figurinha.js";
 import * as help from "./commands/help.js";
 import * as saldo from "./commands/saldo.js";
 import * as darMoedas from "./commands/dar-moedas.js";
+import * as forcereset from "./commands/forcereset.js";
 
 const commands = [
   criarFigurinha.data,
@@ -32,6 +33,7 @@ const commands = [
   help.data,
   saldo.data,
   darMoedas.data,
+  forcereset.data,
 ].map((cmd) => cmd.toJSON());
 
 export async function deployCommands() {
