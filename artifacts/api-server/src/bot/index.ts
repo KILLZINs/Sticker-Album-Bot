@@ -21,6 +21,8 @@ import * as rebirth from "./commands/rebirth.js";
 import * as removerFigurinha from "./commands/remover.js";
 import * as apagarFigurinha from "./commands/apagar-figurinha.js";
 import * as help from "./commands/help.js";
+import * as saldo from "./commands/saldo.js";
+import * as darMoedas from "./commands/dar-moedas.js";
 
 interface Command {
   data: SlashCommandOptionsOnlyBuilder;
@@ -41,6 +43,8 @@ const allCommands: Command[] = [
   removerFigurinha,
   apagarFigurinha,
   help,
+  saldo,
+  darMoedas,
 ];
 
 const commandMap = new Collection<string, Command>();

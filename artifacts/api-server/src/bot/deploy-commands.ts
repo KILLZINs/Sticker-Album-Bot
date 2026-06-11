@@ -13,6 +13,8 @@ import * as rebirth from "./commands/rebirth.js";
 import * as removerFigurinha from "./commands/remover.js";
 import * as apagarFigurinha from "./commands/apagar-figurinha.js";
 import * as help from "./commands/help.js";
+import * as saldo from "./commands/saldo.js";
+import * as darMoedas from "./commands/dar-moedas.js";
 
 const commands = [
   criarFigurinha.data,
@@ -28,6 +30,8 @@ const commands = [
   removerFigurinha.data,
   apagarFigurinha.data,
   help.data,
+  saldo.data,
+  darMoedas.data,
 ].map((cmd) => cmd.toJSON());
 
 export async function deployCommands() {
