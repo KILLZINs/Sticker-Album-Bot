@@ -8,8 +8,8 @@ import {
   ComponentType,
 } from "discord.js";
 import { db } from "@workspace/db";
-import { colecaoUsuarioTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
+import { eq, and, count } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import {
   getSaldo,
@@ -45,6 +45,36 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             `Parabéns por chegar ao topo! Continue colecionando figurinhas! 🎉`
         )
         .setColor(0xf1c40f)
+        .setTimestamp();
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+
+    // Verificar se o usuário tem todas as figurinhas do catálogo
+    const [{ totalCatalogo }] = await db
+      .select({ totalCatalogo: count() })
+      .from(catalogoFigurinhasTable)
+      .where(eq(catalogoFigurinhasTable.guildId, guildId));
+
+    const [{ totalUsuario }] = await db
+      .select({ totalUsuario: count() })
+      .from(colecaoUsuarioTable)
+      .where(
+        and(
+          eq(colecaoUsuarioTable.guildId, guildId),
+          eq(colecaoUsuarioTable.userId, userId)
+        )
+      );
+
+    if (totalCatalogo === 0 || totalUsuario < totalCatalogo) {
+      const embed = new EmbedBuilder()
+        .setTitle("❌ Coleção incompleta!")
+        .setDescription(
+          `Você precisa coletar **TODAS** as figurinhas do catálogo antes de fazer o Rebirth.\n\n` +
+            `📊 Seu progresso: **${totalUsuario}/${totalCatalogo}** figurinhas\n\n` +
+            `Use **/catalogo** para ver quais figurinhas ainda faltam.`
+        )
+        .setColor(0xed4245)
         .setTimestamp();
       await interaction.editReply({ embeds: [embed] });
       return;
