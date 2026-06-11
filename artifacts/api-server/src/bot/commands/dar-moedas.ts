@@ -50,7 +50,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         { name: "💸 Moedas dadas", value: `+${quantidade}`, inline: true },
         { name: "💰 Novo saldo", value: `${novoSaldo} moedas`, inline: true }
       )
-      .setColor(0x57f287)
+      .setColor(0x470f78)
       .setThumbnail(alvo.displayAvatarURL())
       .setTimestamp();
 
