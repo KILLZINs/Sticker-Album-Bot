@@ -1,7 +1,6 @@
 import { db } from "@workspace/db";
 import { moedasUsuarioTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
-import { logger } from "./logger.js";
 
 // Nomes e descontos por nível de rebirth
 export const NIVEL_NOME = ["✨ Normal", "🥈 Prata", "🥇 Ouro"] as const;
@@ -52,21 +51,23 @@ export async function addMoedas(
   userId: string,
   username: string,
   amount: number
-): Promise<void> {
-  try {
-    await db
-      .insert(moedasUsuarioTable)
-      .values({ guildId, userId, username, saldo: amount, nivelRebirth: 0 })
-      .onConflictDoUpdate({
-        target: [moedasUsuarioTable.guildId, moedasUsuarioTable.userId],
-        set: {
-          saldo: sql`${moedasUsuarioTable.saldo} + ${amount}`,
-          username,
-        },
-      });
-  } catch (err) {
-    logger.error({ err }, "Erro ao adicionar moedas");
-  }
+): Promise<number> {
+  // Atomic upsert: insert the row if it doesn't exist, otherwise increment
+  // the balance. RETURNING gives us the actual new saldo without a second
+  // round-trip, and lets callers verify the operation succeeded.
+  const [updated] = await db
+    .insert(moedasUsuarioTable)
+    .values({ guildId, userId, username, saldo: amount, nivelRebirth: 0 })
+    .onConflictDoUpdate({
+      target: [moedasUsuarioTable.guildId, moedasUsuarioTable.userId],
+      set: {
+        saldo: sql`${moedasUsuarioTable.saldo} + ${amount}`,
+        username,
+      },
+    })
+    .returning({ novoSaldo: moedasUsuarioTable.saldo });
+
+  return updated.novoSaldo;
 }
 
 export async function deductMoedas(
