@@ -61,8 +61,8 @@ export async function addMoedas(
     .onConflictDoUpdate({
       target: [moedasUsuarioTable.guildId, moedasUsuarioTable.userId],
       set: {
-        saldo: sql`${moedasUsuarioTable.saldo} + ${amount}`,
-        username,
+        saldo: sql`${moedasUsuarioTable.saldo} + excluded.saldo`,
+        username: sql`excluded.username`,
       },
     })
     .returning({ novoSaldo: moedasUsuarioTable.saldo });
