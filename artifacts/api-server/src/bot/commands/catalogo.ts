@@ -89,7 +89,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           `**Progresso de ${alvoUser.username}:** ${totalDesbloqueadas}/${catalogo.length} (${progresso}%)\n\`${barra}\`\n\n` +
             linhas.join("\n")
         )
-        .setColor(0x5865f2)
+        .setColor(0x470f78)
         .setThumbnail(alvoUser.displayAvatarURL())
         .setFooter({
           text: `Página ${p + 1}/${totalPages} • ✅ desbloqueada • 🔒 bloqueada • Use /desbloquear-figurinha para coletar!`,

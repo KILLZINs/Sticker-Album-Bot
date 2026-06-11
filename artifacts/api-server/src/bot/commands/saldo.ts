@@ -3,7 +3,7 @@ import {
   ChatInputCommandInteraction,
   EmbedBuilder,
 } from "discord.js";
-import { getSaldo } from "../lib/moedas.js";
+import { getSaldo, getNivelRebirth, NIVEL_NOME, DESCONTO_NIVEL } from "../lib/moedas.js";
 
 export const data = new SlashCommandBuilder()
   .setName("saldo")
@@ -15,12 +15,27 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
 
-  const saldo = await getSaldo(guildId, userId);
+  const [saldo, nivel] = await Promise.all([
+    getSaldo(guildId, userId),
+    getNivelRebirth(guildId, userId),
+  ]);
+
+  const nivelNome = NIVEL_NOME[nivel] ?? "✨ Normal";
+  const desconto = DESCONTO_NIVEL[nivel] ?? 1.0;
+  const descontoTexto =
+    desconto < 1.0
+      ? `🏷️ Desconto nos pacotinhos: **${Math.round((1 - desconto) * 100)}% off**`
+      : `🏷️ Sem desconto nos pacotinhos`;
 
   const embed = new EmbedBuilder()
     .setTitle("💰 Seu Saldo")
-    .setDescription(`Você tem **${saldo} moedas**!`)
+    .setDescription(
+      `Você tem **${saldo} moedas**!\n\n` +
+        `🔁 Nível Rebirth: **${nivelNome}**\n` +
+        descontoTexto
+    )
     .setColor(0xf1c40f)
+    .setThumbnail(interaction.user.displayAvatarURL())
     .setTimestamp();
 
   await interaction.editReply({ embeds: [embed] });
