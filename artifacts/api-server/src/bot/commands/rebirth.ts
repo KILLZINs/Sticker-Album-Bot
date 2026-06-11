@@ -44,7 +44,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           `Você já está no nível máximo: **${nivelAtualNome}**\n\n` +
             `Parabéns por chegar ao topo! Continue colecionando figurinhas! 🎉`
         )
-        .setColor(0xf1c40f)
+        .setColor(0x470f78)
         .setTimestamp();
       await interaction.editReply({ embeds: [embed] });
       return;
@@ -74,7 +74,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             `📊 Seu progresso: **${totalUsuario}/${totalCatalogo}** figurinhas\n\n` +
             `Use **/catalogo** para ver quais figurinhas ainda faltam.`
         )
-        .setColor(0xed4245)
+        .setColor(0x470f78)
         .setTimestamp();
       await interaction.editReply({ embeds: [embed] });
       return;
@@ -149,7 +149,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             `**Seus novos preços de pacotinhos:**\n${linhasPrecos}\n\n` +
             `Abra pacotinhos para reconstruir seu álbum! 🚀`
         )
-        .setColor(0x57f287)
+        .setColor(0x470f78)
         .setTimestamp();
 
       await btn.update({ embeds: [embedSucesso], components: [] });
