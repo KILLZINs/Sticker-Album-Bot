@@ -32,6 +32,7 @@ import * as darFigurinha from "./commands/dar-figurinha.js";
 import * as configurarEmojis from "./commands/configurar-emojis.js";
 import * as configurarMoedas from "./commands/configurar-moedas.js";
 import * as biografia from "./commands/biografia.js";
+import * as comparar from "./commands/comparar.js";
 
 interface Command {
   data: SlashCommandOptionsOnlyBuilder;
@@ -61,6 +62,7 @@ const allCommands: Command[] = [
   configurarEmojis,
   configurarMoedas,
   biografia,
+  comparar,
 ];
 
 const commandMap = new Collection<string, Command>();
