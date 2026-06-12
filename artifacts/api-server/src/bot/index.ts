@@ -23,6 +23,7 @@ import * as apagarFigurinha from "./commands/apagar-figurinha.js";
 import * as help from "./commands/help.js";
 import * as saldo from "./commands/saldo.js";
 import * as darMoedas from "./commands/dar-moedas.js";
+import * as atm from "./commands/atm.js";
 
 interface Command {
   data: SlashCommandOptionsOnlyBuilder;
@@ -45,6 +46,7 @@ const allCommands: Command[] = [
   help,
   saldo,
   darMoedas,
+  atm,
 ];
 
 const commandMap = new Collection<string, Command>();
