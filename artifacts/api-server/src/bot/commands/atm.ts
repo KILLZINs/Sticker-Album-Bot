@@ -7,7 +7,9 @@ import { db } from "@workspace/db";
 import { colecaoUsuarioTable, moedasUsuarioTable } from "@workspace/db";
 import { eq, and, countDistinct } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
-import { NIVEL_NOME, PACKS, calcularPreco } from "../lib/moedas.js";
+import { NIVEL_NOME, PACKS, calcularPreco, type TipoPacote } from "../lib/moedas.js";
+import { getGuildEmojis, type GuildEmojis } from "../lib/emoji-config.js";
+import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("atm")
@@ -18,6 +20,12 @@ export const data = new SlashCommandBuilder()
       .setDescription("Usuário que deseja consultar")
       .setRequired(true)
   );
+
+const PACK_EMOJI_CHAVE: Record<TipoPacote, keyof GuildEmojis> = {
+  standard: "pacote_standard",
+  deluxe: "pacote_deluxe",
+  ultimate: "pacote_ultimate",
+};
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
@@ -31,42 +39,38 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   try {
-    // Buscar dados de moedas do usuário
-    const [row] = await db
-      .select({
-        saldo: moedasUsuarioTable.saldo,
-        nivelRebirth: moedasUsuarioTable.nivelRebirth,
-      })
-      .from(moedasUsuarioTable)
-      .where(
-        and(
-          eq(moedasUsuarioTable.guildId, guildId),
-          eq(moedasUsuarioTable.userId, alvo.id)
-        )
-      )
-      .limit(1);
+    const [rowResult, colecaoResult, emojis, moedaCfg] = await Promise.all([
+      db
+        .select({ saldo: moedasUsuarioTable.saldo, nivelRebirth: moedasUsuarioTable.nivelRebirth })
+        .from(moedasUsuarioTable)
+        .where(and(eq(moedasUsuarioTable.guildId, guildId), eq(moedasUsuarioTable.userId, alvo.id)))
+        .limit(1),
+      db
+        .select({ totalUnicas: countDistinct(colecaoUsuarioTable.catalogoId) })
+        .from(colecaoUsuarioTable)
+        .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, alvo.id))),
+      getGuildEmojis(guildId),
+      getGuildMoedaConfig(guildId),
+    ]);
 
-    const saldo = row?.saldo ?? 0;
-    const nivel = row?.nivelRebirth ?? 0;
+    const saldo = rowResult[0]?.saldo ?? 0;
+    const nivel = rowResult[0]?.nivelRebirth ?? 0;
+    const totalUnicas = colecaoResult[0]?.totalUnicas ?? 0;
     const nivelNome = NIVEL_NOME[nivel] ?? "Normal";
+    const nomeMoeda = moedaCfg.nomeMoeda;
 
-    // Contar figurinhas únicas do usuário
-    const [{ totalUnicas }] = await db
-      .select({ totalUnicas: countDistinct(colecaoUsuarioTable.catalogoId) })
-      .from(colecaoUsuarioTable)
-      .where(
-        and(
-          eq(colecaoUsuarioTable.guildId, guildId),
-          eq(colecaoUsuarioTable.userId, alvo.id)
-        )
-      );
+    const precosBase: Record<TipoPacote, number> = {
+      standard: moedaCfg.precoStandard,
+      deluxe: moedaCfg.precoDeluxe,
+      ultimate: moedaCfg.precoUltimate,
+    };
 
-    // Preços dos pacotes com o desconto do nível dele
-    const pacotes = Object.values(PACKS)
-      .map((pack) => {
-        const preco = calcularPreco(pack.precoBase, nivel);
+    const pacotes = (Object.entries(PACKS) as [TipoPacote, typeof PACKS[TipoPacote]][])
+      .map(([tipo, pack]) => {
+        const preco = calcularPreco(precosBase[tipo], nivel);
         const podeComprar = saldo >= preco ? "✅" : "❌";
-        return `${podeComprar} ${pack.emoji} ${pack.nome}: **${preco}**`;
+        const packEmoji = emojis[PACK_EMOJI_CHAVE[tipo]];
+        return `${podeComprar} ${packEmoji} ${pack.nome}: **${preco}**`;
       })
       .join(" · ");
 
@@ -76,8 +80,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .setThumbnail(alvo.displayAvatarURL())
       .addFields(
         {
-          name: "💰 Saldo",
-          value: `**${saldo}** moedas`,
+          name: `${emojis.moedas} ${nomeMoeda.charAt(0).toUpperCase() + nomeMoeda.slice(1)}`,
+          value: `**${saldo}** ${nomeMoeda}`,
           inline: true,
         },
         {
@@ -91,7 +95,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           inline: true,
         },
         {
-          name: "🛒 Pacotes (com desconto do nível)",
+          name: `🛒 Pacotes (com desconto do nível)`,
           value: pacotes,
           inline: false,
         }

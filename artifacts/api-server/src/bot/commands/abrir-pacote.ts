@@ -18,6 +18,7 @@ import {
   type TipoPacote,
 } from "../lib/moedas.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
+import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 
 const RARIDADE_PESO: Record<string, number> = {
   comum: 55,
@@ -36,9 +37,9 @@ export const data = new SlashCommandBuilder()
       .setDescription("Tipo do pacotinho a comprar")
       .setRequired(true)
       .addChoices(
-        { name: "📦 Standard — 3 figurinhas • 300 moedas", value: "standard" },
-        { name: "🎁 Deluxe — 5 figurinhas • 500 moedas", value: "deluxe" },
-        { name: "⭐ Ultimate — 10 figurinhas • 1000 moedas", value: "ultimate" },
+        { name: "📦 Standard — 3 figurinhas", value: "standard" },
+        { name: "🎁 Deluxe — 5 figurinhas", value: "deluxe" },
+        { name: "⭐ Ultimate — 10 figurinhas", value: "ultimate" },
       )
   );
 
@@ -51,12 +52,24 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const tipo = interaction.options.getString("tipo", true) as TipoPacote;
 
   try {
-    const emojis = await getGuildEmojis(guildId);
+    const [emojis, moedaCfg] = await Promise.all([
+      getGuildEmojis(guildId),
+      getGuildMoedaConfig(guildId),
+    ]);
+
     const pack = PACKS[tipo];
     const nivel = await getNivelRebirth(guildId, userId);
-    const preco = calcularPreco(pack.precoBase, nivel);
+
+    // Usa o preço configurado pelo servidor como base
+    const precosBase: Record<TipoPacote, number> = {
+      standard: moedaCfg.precoStandard,
+      deluxe: moedaCfg.precoDeluxe,
+      ultimate: moedaCfg.precoUltimate,
+    };
+    const preco = calcularPreco(precosBase[tipo], nivel);
     const saldo = await getSaldo(guildId, userId);
     const nivelNome = NIVEL_NOME[nivel] ?? "Normal";
+    const nomeMoeda = moedaCfg.nomeMoeda;
 
     // Emoji do pacote configurado
     const packEmojiMap: Record<TipoPacote, string> = {
@@ -67,13 +80,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const packEmoji = packEmojiMap[tipo];
 
     if (saldo < preco) {
-      const descPct = Math.round((1 - preco / pack.precoBase) * 100);
+      const descPct = Math.round((1 - preco / precosBase[tipo]) * 100);
       const descTxt = descPct > 0 ? ` (${descPct}% desconto — ${nivelNome})` : "";
       await interaction.editReply(
         `❌ **Saldo insuficiente!**\n\n` +
-          `${emojis.moedas} Seu saldo: **${saldo} moedas**\n` +
-          `${packEmoji} Pacote **${pack.nome}**: **${preco} moedas**${descTxt}\n\n` +
-          `Envie mensagens com mais de 8 caracteres para ganhar moedas! **(+2 por mensagem)**`
+          `${emojis.moedas} Seu saldo: **${saldo} ${nomeMoeda}**\n` +
+          `${packEmoji} Pacote **${pack.nome}**: **${preco} ${nomeMoeda}**${descTxt}\n\n` +
+          `Envie mensagens com mais de 5 caracteres para ganhar ${nomeMoeda}! **(+${moedaCfg.moedasPorMensagem} por mensagem)**`
       );
       return;
     }
@@ -120,7 +133,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .setImage(maisRara.imageUrl)
       .setColor(getRaridadeColor(maisRara.raridade))
       .addFields(
-        { name: `${emojis.moedas} Saldo restante`, value: `${novoSaldo} moedas`, inline: true },
+        { name: `${emojis.moedas} Saldo restante`, value: `${novoSaldo} ${nomeMoeda}`, inline: true },
         { name: "🏆 Nível do álbum", value: nivelNome, inline: true }
       )
       .setTimestamp();

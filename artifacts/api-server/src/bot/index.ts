@@ -9,6 +9,7 @@ import {
 import { logger } from "./lib/logger.js";
 import { deployCommands } from "./deploy-commands.js";
 import { addMoedas } from "./lib/moedas.js";
+import { getGuildMoedaConfig } from "./lib/moeda-config.js";
 import * as criarFigurinha from "./commands/criar-figurinha.js";
 import * as desbloquear from "./commands/desbloquear.js";
 import * as abrirPacote from "./commands/abrir-pacote.js";
@@ -29,6 +30,7 @@ import * as forceReset from "./commands/forcereset.js";
 import * as repetidas from "./commands/repetidas.js";
 import * as darFigurinha from "./commands/dar-figurinha.js";
 import * as configurarEmojis from "./commands/configurar-emojis.js";
+import * as configurarMoedas from "./commands/configurar-moedas.js";
 
 interface Command {
   data: SlashCommandOptionsOnlyBuilder;
@@ -56,6 +58,7 @@ const allCommands: Command[] = [
   repetidas,
   darFigurinha,
   configurarEmojis,
+  configurarMoedas,
 ];
 
 const commandMap = new Collection<string, Command>();
@@ -85,20 +88,21 @@ export async function startBot() {
     logger.info({ tag: c.user.tag }, "🤖 Bot do Álbum de Figurinhas online!");
   });
 
-  // Listener de mensagens — +2 moedas por mensagem com 5 ou mais caracteres
+  // Listener de mensagens — moedas por mensagem configurável por servidor
   client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
     if (!message.guildId) return;
     if (message.content.length < 5) return;
     try {
-      await addMoedas(message.guildId, message.author.id, message.author.username, 2);
+      const moedaCfg = await getGuildMoedaConfig(message.guildId);
+      await addMoedas(message.guildId, message.author.id, message.author.username, moedaCfg.moedasPorMensagem);
     } catch (err) {
       logger.warn({ err, userId: message.author.id }, "Falha ao adicionar moedas por mensagem");
     }
   });
 
   client.on("interactionCreate", async (interaction: Interaction) => {
-    // Botões do painel de emojis (individuais)
+    // --- Botões do painel de emojis (individuais) ---
     if (interaction.isButton() && interaction.customId.startsWith("emoji_btn_")) {
       await configurarEmojis.handleEmojiButton(interaction).catch((err) => {
         logger.error({ err }, "Erro ao processar botão de emoji config");
@@ -106,7 +110,7 @@ export async function startBot() {
       return;
     }
 
-    // Botões de confirmação/cancelamento de reset
+    // --- Botões de confirmação/cancelamento de reset de emojis ---
     if (
       interaction.isButton() &&
       (interaction.customId.startsWith("emoji_reset_confirm_") ||
@@ -118,10 +122,38 @@ export async function startBot() {
       return;
     }
 
-    // Modais do painel de emojis
+    // --- Modais do painel de emojis ---
     if (interaction.isModalSubmit() && interaction.customId.startsWith("emoji_modal_")) {
       await configurarEmojis.handleEmojiModal(interaction).catch((err) => {
         logger.error({ err }, "Erro ao processar modal de emoji config");
+      });
+      return;
+    }
+
+    // --- Botões do painel de moedas ---
+    if (interaction.isButton() && interaction.customId.startsWith("moeda_btn_")) {
+      await configurarMoedas.handleMoedaButton(interaction).catch((err) => {
+        logger.error({ err }, "Erro ao processar botão de moeda config");
+      });
+      return;
+    }
+
+    // --- Botões de confirmação/cancelamento de reset de moedas ---
+    if (
+      interaction.isButton() &&
+      (interaction.customId.startsWith("moeda_reset_confirm_") ||
+        interaction.customId.startsWith("moeda_reset_cancel_"))
+    ) {
+      await configurarMoedas.handleMoedaResetButton(interaction).catch((err) => {
+        logger.error({ err }, "Erro ao processar reset de moeda config");
+      });
+      return;
+    }
+
+    // --- Modais do painel de moedas ---
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("moeda_modal_")) {
+      await configurarMoedas.handleMoedaModal(interaction).catch((err) => {
+        logger.error({ err }, "Erro ao processar modal de moeda config");
       });
       return;
     }

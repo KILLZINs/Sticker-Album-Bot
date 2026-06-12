@@ -129,3 +129,17 @@ export const emojiConfigTable = pgTable(
 );
 
 export type EmojiConfig = typeof emojiConfigTable.$inferSelect;
+
+// Configuração de moedas por servidor (nome, ganho por mensagem, preços dos pacotes)
+export const moedaConfigTable = pgTable(
+  "moeda_config",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    chave: text("chave").notNull(),
+    valor: text("valor").notNull(),
+  },
+  (t) => [unique("moeda_config_unique").on(t.guildId, t.chave)]
+);
+
+export type MoedaConfig = typeof moedaConfigTable.$inferSelect;

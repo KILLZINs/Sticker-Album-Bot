@@ -14,6 +14,7 @@ import {
   type TipoPacote,
 } from "../lib/moedas.js";
 import { getGuildEmojis, type GuildEmojis } from "../lib/emoji-config.js";
+import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("saldo")
@@ -36,24 +37,31 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const isSelf = alvo.id === interaction.user.id;
 
   try {
-    const [saldo, nivel, emojis] = await Promise.all([
+    const [saldo, nivel, emojis, moedaCfg] = await Promise.all([
       getSaldo(guildId, alvo.id),
       getNivelRebirth(guildId, alvo.id),
       getGuildEmojis(guildId),
+      getGuildMoedaConfig(guildId),
     ]);
 
     const nivelNome = NIVEL_NOME[nivel] ?? "Normal";
     const isMaxNivel = nivel >= MAX_NIVEL;
+    const nomeMoeda = moedaCfg.nomeMoeda;
 
-    // Montar tabela de preços com desconto atual usando emojis configurados
+    const precosBase: Record<TipoPacote, number> = {
+      standard: moedaCfg.precoStandard,
+      deluxe: moedaCfg.precoDeluxe,
+      ultimate: moedaCfg.precoUltimate,
+    };
+
     const linhasPrecos = (Object.entries(PACKS) as [TipoPacote, typeof PACKS[TipoPacote]][])
       .map(([tipo, pack]) => {
-        const preco = calcularPreco(pack.precoBase, nivel);
-        const descPct = Math.round((1 - preco / pack.precoBase) * 100);
+        const preco = calcularPreco(precosBase[tipo], nivel);
+        const descPct = Math.round((1 - preco / precosBase[tipo]) * 100);
         const descTxt = descPct > 0 ? ` (-${descPct}%)` : "";
         const podeComprar = saldo >= preco ? "✅" : "❌";
         const packEmoji = emojis[PACK_EMOJI_CHAVE[tipo]];
-        return `${podeComprar} ${packEmoji} **${pack.nome}**: ${preco} moedas${descTxt}`;
+        return `${podeComprar} ${packEmoji} **${pack.nome}**: ${preco} ${nomeMoeda}${descTxt}`;
       })
       .join("\n");
 
@@ -68,8 +76,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .setThumbnail(alvo.displayAvatarURL())
       .addFields(
         {
-          name: `${emojis.moedas} Moedas`,
-          value: `**${saldo}** moedas\n*(+2 por mensagem com ≥5 caracteres)*`,
+          name: `${emojis.moedas} ${nomeMoeda.charAt(0).toUpperCase() + nomeMoeda.slice(1)}`,
+          value: `**${saldo}** ${nomeMoeda}\n*(+${moedaCfg.moedasPorMensagem} por mensagem com ≥5 caracteres)*`,
           inline: true,
         },
         {
