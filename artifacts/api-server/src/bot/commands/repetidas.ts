@@ -7,14 +7,7 @@ import { db } from "@workspace/db";
 import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and, gt, count } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
-
-const RARIDADE_EMOJI: Record<string, string> = {
-  comum: "⚪",
-  incomum: "🟢",
-  rara: "🔵",
-  épica: "🟣",
-  lendária: "🌟",
-};
+import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("repetidas")
@@ -34,6 +27,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const userId = alvoUser.id;
 
   try {
+    const emojis = await getGuildEmojis(guildId);
+
     const repetidas = await db
       .select({
         catalogoId: colecaoUsuarioTable.catalogoId,
@@ -70,7 +65,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
 
     const linhas = repetidas.map((fig) => {
-      const emoji = RARIDADE_EMOJI[fig.raridade] ?? "⚪";
+      const emoji = getRaridadeEmoji(emojis, fig.raridade);
       const extras = fig.copias - 1;
       return `${emoji} **#${fig.numero}** ${fig.titulo} *(+${extras} extra${extras > 1 ? "s" : ""})*`;
     });

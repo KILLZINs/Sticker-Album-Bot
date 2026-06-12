@@ -103,3 +103,17 @@ export type InsertFigurinha = z.infer<typeof insertFigurinhaSchema>;
 export type Figurinha = typeof figurinhasTable.$inferSelect;
 export type InsertAlbum = z.infer<typeof insertAlbumSchema>;
 export type Album = typeof albumsTable.$inferSelect;
+
+// Configuração de emojis personalizados por servidor
+export const emojiConfigTable = pgTable(
+  "emoji_config",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    chave: text("chave").notNull(),
+    emoji: text("emoji").notNull(),
+  },
+  (t) => [unique("emoji_config_unique").on(t.guildId, t.chave)]
+);
+
+export type EmojiConfig = typeof emojiConfigTable.$inferSelect;

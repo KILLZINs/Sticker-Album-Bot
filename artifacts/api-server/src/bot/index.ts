@@ -28,6 +28,7 @@ import * as atm from "./commands/atm.js";
 import * as forceReset from "./commands/forcereset.js";
 import * as repetidas from "./commands/repetidas.js";
 import * as darFigurinha from "./commands/dar-figurinha.js";
+import * as configurarEmojis from "./commands/configurar-emojis.js";
 
 interface Command {
   data: SlashCommandOptionsOnlyBuilder;
@@ -54,6 +55,7 @@ const allCommands: Command[] = [
   forceReset,
   repetidas,
   darFigurinha,
+  configurarEmojis,
 ];
 
 const commandMap = new Collection<string, Command>();
@@ -75,8 +77,6 @@ export async function startBot() {
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMessages,
-      // MessageContent é um privileged intent — precisa ser ativado no Discord Developer Portal
-      // Bot Settings → Privileged Gateway Intents → Message Content Intent
       GatewayIntentBits.MessageContent,
     ],
   });
@@ -98,6 +98,22 @@ export async function startBot() {
   });
 
   client.on("interactionCreate", async (interaction: Interaction) => {
+    // Botões do painel de emojis
+    if (interaction.isButton() && interaction.customId.startsWith("emoji_btn_")) {
+      await configurarEmojis.handleEmojiButton(interaction).catch((err) => {
+        logger.error({ err }, "Erro ao processar botão de emoji config");
+      });
+      return;
+    }
+
+    // Modais do painel de emojis
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("emoji_modal_")) {
+      await configurarEmojis.handleEmojiModal(interaction).catch((err) => {
+        logger.error({ err }, "Erro ao processar modal de emoji config");
+      });
+      return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     const command = commandMap.get(interaction.commandName);

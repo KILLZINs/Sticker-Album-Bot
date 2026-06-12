@@ -17,21 +17,14 @@ import {
   calcularPreco,
   type TipoPacote,
 } from "../lib/moedas.js";
+import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 
 const RARIDADE_PESO: Record<string, number> = {
   comum: 55,
   incomum: 25,
   rara: 12,
-  épica: 6,
-  lendária: 2,
-};
-
-const RARIDADE_EMOJI: Record<string, string> = {
-  comum: "⚪",
-  incomum: "🟢",
-  rara: "🔵",
-  épica: "🟣",
-  lendária: "🌟",
+  "épica": 6,
+  "lendária": 2,
 };
 
 export const data = new SlashCommandBuilder()
@@ -58,25 +51,33 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const tipo = interaction.options.getString("tipo", true) as TipoPacote;
 
   try {
+    const emojis = await getGuildEmojis(guildId);
     const pack = PACKS[tipo];
     const nivel = await getNivelRebirth(guildId, userId);
     const preco = calcularPreco(pack.precoBase, nivel);
     const saldo = await getSaldo(guildId, userId);
     const nivelNome = NIVEL_NOME[nivel] ?? "Normal";
 
+    // Emoji do pacote configurado
+    const packEmojiMap: Record<TipoPacote, string> = {
+      standard: emojis.pacote_standard,
+      deluxe: emojis.pacote_deluxe,
+      ultimate: emojis.pacote_ultimate,
+    };
+    const packEmoji = packEmojiMap[tipo];
+
     if (saldo < preco) {
       const descPct = Math.round((1 - preco / pack.precoBase) * 100);
       const descTxt = descPct > 0 ? ` (${descPct}% desconto — ${nivelNome})` : "";
       await interaction.editReply(
         `❌ **Saldo insuficiente!**\n\n` +
-          `💰 Seu saldo: **${saldo} moedas**\n` +
-          `${pack.emoji} Pacote **${pack.nome}**: **${preco} moedas**${descTxt}\n\n` +
+          `${emojis.moedas} Seu saldo: **${saldo} moedas**\n` +
+          `${packEmoji} Pacote **${pack.nome}**: **${preco} moedas**${descTxt}\n\n` +
           `Envie mensagens com mais de 8 caracteres para ganhar moedas! **(+2 por mensagem)**`
       );
       return;
     }
 
-    // Buscar catálogo completo — figurinhas repetidas são permitidas!
     const catalogo = await db
       .select()
       .from(catalogoFigurinhasTable)
@@ -89,13 +90,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    // Deduzir moedas antes de sortear — atomic deduction returns the real new balance
-    const novoSaldo = await deductMoedas(guildId, userId, username, preco);
+    await deductMoedas(guildId, userId, username, preco);
+    const novoSaldo = await getSaldo(guildId, userId);
 
-    // Sortear com peso por raridade (duplicatas permitidas — pool completo a cada sorteio)
     const sorteadas = sortearComPeso(catalogo, pack.figurinhas);
 
-    // Inserir na coleção (sem unique constraint — permite repetidas)
     await db.insert(colecaoUsuarioTable).values(
       sorteadas.map((fig) => ({ guildId, userId, username, catalogoId: fig.id }))
     );
@@ -106,13 +105,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         : melhor,
       sorteadas[0]!
     );
+
     const linhas = sorteadas.map((fig) => {
-      const emoji = RARIDADE_EMOJI[fig.raridade] ?? "⚪";
+      const emoji = getRaridadeEmoji(emojis, fig.raridade);
       return `${emoji} **${fig.titulo}** — ${fig.raridade}`;
     });
 
     const embed = new EmbedBuilder()
-      .setTitle(`${pack.emoji} Pacote ${pack.nome} de ${username} aberto!`)
+      .setTitle(`${packEmoji} Pacote ${pack.nome} de ${username} aberto!`)
       .setDescription(
         `Você ganhou **${sorteadas.length} figurinha${sorteadas.length > 1 ? "s" : ""}**!\n\n` +
           linhas.join("\n")
@@ -120,7 +120,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .setImage(maisRara.imageUrl)
       .setColor(getRaridadeColor(maisRara.raridade))
       .addFields(
-        { name: "💰 Saldo restante", value: `${novoSaldo} moedas`, inline: true },
+        { name: `${emojis.moedas} Saldo restante`, value: `${novoSaldo} moedas`, inline: true },
         { name: "🏆 Nível do álbum", value: nivelNome, inline: true }
       )
       .setTimestamp();
@@ -167,15 +167,10 @@ function sortearComPeso(
 
 function getRaridadeColor(raridade: string): number {
   switch (raridade) {
-    case "incomum":
-      return 0x57f287;
-    case "rara":
-      return 0x5865f2;
-    case "épica":
-      return 0x470f78;
-    case "lendária":
-      return 0xf1c40f;
-    default:
-      return 0x99aab5;
+    case "incomum": return 0x57f287;
+    case "rara":    return 0x5865f2;
+    case "épica":   return 0x470f78;
+    case "lendária":return 0xf1c40f;
+    default:        return 0x99aab5;
   }
 }

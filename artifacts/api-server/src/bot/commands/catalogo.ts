@@ -11,14 +11,7 @@ import { db } from "@workspace/db";
 import { catalogoFigurinhasTable, colecaoUsuarioTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
-
-const RARIDADE_EMOJI: Record<string, string> = {
-  comum: "⚪",
-  incomum: "🟢",
-  rara: "🔵",
-  épica: "🟣",
-  lendária: "🌟",
-};
+import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("catalogo")
@@ -36,7 +29,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const guildId = interaction.guildId!;
 
   try {
-    // Buscar catálogo completo
+    const emojis = await getGuildEmojis(guildId);
+
     const catalogo = await db
       .select()
       .from(catalogoFigurinhasTable)
@@ -51,7 +45,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    // Buscar quais o usuário já desbloqueou
     const colecao = await db
       .select({ catalogoId: colecaoUsuarioTable.catalogoId })
       .from(colecaoUsuarioTable)
@@ -73,7 +66,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const pagina = catalogo.slice(inicio, inicio + PAGE_SIZE);
 
       const linhas = pagina.map((fig) => {
-        const emoji = RARIDADE_EMOJI[fig.raridade] ?? "⚪";
+        const emoji = getRaridadeEmoji(emojis, fig.raridade);
         const status = desbloqueadosIds.has(fig.id) ? "✅" : "🔒";
         return `${status} ${emoji} **#${fig.numero}** ${fig.titulo}`;
       });

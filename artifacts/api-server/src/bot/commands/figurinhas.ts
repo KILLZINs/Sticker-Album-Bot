@@ -7,14 +7,7 @@ import { db } from "@workspace/db";
 import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and, ilike } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
-
-const RARIDADE_EMOJI: Record<string, string> = {
-  comum: "⚪",
-  incomum: "🟢",
-  rara: "🔵",
-  épica: "🟣",
-  lendária: "🌟",
-};
+import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("figurinhas")
@@ -36,6 +29,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const isSelf = alvoUser.id === interaction.user.id;
 
   try {
+    const emojis = await getGuildEmojis(guildId);
+
     const whereClause = busca
       ? and(
           eq(colecaoUsuarioTable.guildId, guildId),
@@ -75,14 +70,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
 
     const contagem: Record<string, number> = {
-      comum: 0, incomum: 0, rara: 0, épica: 0, lendária: 0,
+      comum: 0, incomum: 0, rara: 0, "épica": 0, "lendária": 0,
     };
     for (const fig of figurinhas) {
       contagem[fig.raridade] = (contagem[fig.raridade] ?? 0) + 1;
     }
 
     const linhas = figurinhas.map((fig) => {
-      const emoji = RARIDADE_EMOJI[fig.raridade] ?? "⚪";
+      const emoji = getRaridadeEmoji(emojis, fig.raridade);
       return `${emoji} **#${fig.numero}** ${fig.titulo}`;
     });
 
@@ -97,7 +92,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .setThumbnail(alvoUser.displayAvatarURL())
       .setDescription(
         `**Total: ${figurinhas.length} figurinha${figurinhas.length > 1 ? "s" : ""}**\n` +
-          `⚪ ${contagem.comum} | 🟢 ${contagem.incomum} | 🔵 ${contagem.rara} | 🟣 ${contagem.épica} | 🌟 ${contagem.lendária}`
+          `${emojis.raridade_comum} ${contagem.comum} | ` +
+          `${emojis.raridade_incomum} ${contagem.incomum} | ` +
+          `${emojis.raridade_rara} ${contagem.rara} | ` +
+          `${emojis.raridade_epica} ${contagem["épica"] ?? 0} | ` +
+          `${emojis.raridade_lendaria} ${contagem["lendária"] ?? 0}`
       );
 
     const maxCampos = Math.min(chunks.length, 5);

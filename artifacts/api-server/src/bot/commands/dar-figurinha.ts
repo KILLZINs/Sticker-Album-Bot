@@ -8,15 +8,7 @@ import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { verificarConquistas, anunciarConquistas } from "../lib/conquistas.js";
-
-// RARIDADE_EMOJI
-const RARIDADE_EMOJI: Record<string, string> = {
-  comum: "⚪",
-  incomum: "🟢",
-  rara: "🔵",
-  épica: "🟣",
-  lendária: "🌟",
-};
+import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("dar-figurinha")
@@ -55,7 +47,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   try {
-    // Buscar a figurinha no catálogo pelo número
+    const emojis = await getGuildEmojis(guildId);
+
     const [catalogoEntry] = await db
       .select()
       .from(catalogoFigurinhasTable)
@@ -72,7 +65,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    // Verificar se o remetente tem pelo menos uma cópia
     const [minhaColecao] = await db
       .select()
       .from(colecaoUsuarioTable)
@@ -92,7 +84,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    // Remover UMA cópia do remetente e dar ao destinatário
     await db
       .delete(colecaoUsuarioTable)
       .where(eq(colecaoUsuarioTable.id, minhaColecao.id));
@@ -104,13 +95,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       catalogoId: catalogoEntry.id,
     });
 
-    // Verificar conquistas do destinatário
     const novasConquistas = await verificarConquistas(guildId, destino.id, destino.username, {});
     if (novasConquistas.length > 0) {
       await anunciarConquistas(interaction.channelId!, destino.id, novasConquistas, interaction.client);
     }
 
-    const emoji = RARIDADE_EMOJI[catalogoEntry.raridade] ?? "⚪";
+    const emoji = getRaridadeEmoji(emojis, catalogoEntry.raridade);
 
     const embed = new EmbedBuilder()
       .setTitle("🎁 Figurinha transferida!")
