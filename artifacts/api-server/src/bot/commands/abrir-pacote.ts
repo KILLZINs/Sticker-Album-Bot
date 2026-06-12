@@ -28,6 +28,15 @@ const RARIDADE_PESO: Record<string, number> = {
   "lendária": 2,
 };
 
+// Chance de drop exibida ao lado de cada figurinha sorteada
+const RARIDADE_CHANCE: Record<string, string> = {
+  comum: "55%",
+  incomum: "25%",
+  rara: "12%",
+  "épica": "6%",
+  "lendária": "2%",
+};
+
 export const data = new SlashCommandBuilder()
   .setName("abrir-pacote")
   .setDescription("Compra e abre um pacotinho de figurinhas com suas moedas!")
@@ -60,7 +69,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const pack = PACKS[tipo];
     const nivel = await getNivelRebirth(guildId, userId);
 
-    // Usa o preço configurado pelo servidor como base
     const precosBase: Record<TipoPacote, number> = {
       standard: moedaCfg.precoStandard,
       deluxe: moedaCfg.precoDeluxe,
@@ -71,7 +79,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const nivelNome = NIVEL_NOME[nivel] ?? "Normal";
     const nomeMoeda = moedaCfg.nomeMoeda;
 
-    // Emoji do pacote configurado
     const packEmojiMap: Record<TipoPacote, string> = {
       standard: emojis.pacote_standard,
       deluxe: emojis.pacote_deluxe,
@@ -121,7 +128,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const linhas = sorteadas.map((fig) => {
       const emoji = getRaridadeEmoji(emojis, fig.raridade);
-      return `${emoji} **${fig.titulo}** — ${fig.raridade}`;
+      const chance = RARIDADE_CHANCE[fig.raridade] ?? "?";
+      return `${emoji} **${fig.titulo}** — ${fig.raridade} *(${chance})*`;
     });
 
     const embed = new EmbedBuilder()

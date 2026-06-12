@@ -21,6 +21,7 @@ import * as repetidas from "./commands/repetidas.js";
 import * as darFigurinha from "./commands/dar-figurinha.js";
 import * as configurarEmojis from "./commands/configurar-emojis.js";
 import * as configurarMoedas from "./commands/configurar-moedas.js";
+import * as biografia from "./commands/biografia.js";
 
 const commands = [
   criarFigurinha.data,
@@ -44,6 +45,7 @@ const commands = [
   darFigurinha.data,
   configurarEmojis.data,
   configurarMoedas.data,
+  biografia.data,
 ].map((cmd) => cmd.toJSON());
 
 export async function deployCommands() {
