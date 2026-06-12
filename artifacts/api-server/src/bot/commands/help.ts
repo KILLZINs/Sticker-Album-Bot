@@ -28,7 +28,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .setTitle("📖 Álbum de Figurinhas — Comandos")
       .setColor(0x7B2FBE)
       .setDescription(
-        `Bem-vindo ao bot de figurinhas do ╋━ Skying! Colecione, troque e compita com seus amigos!\n\n` +
+        `Bem-vindo ao bot de figurinhas! Colecione, troque e compita com seus amigos!\n\n` +
         `${m} **Ganhe ${nome}:** envie mensagens com mais de 5 caracteres **(+${ganho} ${nome} por mensagem)**\n` +
         `> Use \`/biografia\` para saber mais sobre o bot.`
       )
@@ -76,6 +76,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             `\`/dar-figurinha @usuário número\` — Doa uma figurinha **repetida**\n` +
             `  ⚠️ Somente nível ✨ Normal • 1 doação a cada 3 dias\n` +
             `\`/propor-troca @usuário\` — Propõe uma troca de figurinha\n` +
+            `\`/comparar @usuário\` — Compara sua coleção com a de outro usuário\n` +
             `\`/ranking\` — Top 10 colecionadores do servidor\n` +
             `\`/conquistas\` — Vê seus marcos e badges desbloqueados`,
           inline: false,
