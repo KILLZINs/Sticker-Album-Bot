@@ -8,14 +8,7 @@ import { db } from "@workspace/db";
 import { catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and, count } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
-
-const RARIDADE_EMOJI: Record<string, string> = {
-  comum: "⚪",
-  incomum: "🟢",
-  rara: "🔵",
-  épica: "🟣",
-  lendária: "🌟",
-};
+import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("criar-figurinha")
@@ -59,16 +52,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   try {
-    // Verificar se já existe figurinha com mesmo título no catálogo
+    const emojis = await getGuildEmojis(guildId);
+
     const [existente] = await db
       .select()
       .from(catalogoFigurinhasTable)
-      .where(
-        and(
-          eq(catalogoFigurinhasTable.guildId, guildId),
-          eq(catalogoFigurinhasTable.titulo, titulo)
-        )
-      )
+      .where(and(eq(catalogoFigurinhasTable.guildId, guildId), eq(catalogoFigurinhasTable.titulo, titulo)))
       .limit(1);
 
     if (existente) {
@@ -78,7 +67,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    // Próximo número no catálogo
     const [{ total }] = await db
       .select({ total: count() })
       .from(catalogoFigurinhasTable)
@@ -86,7 +74,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const numero = (total ?? 0) + 1;
 
-    const [fig] = await db
+    await db
       .insert(catalogoFigurinhasTable)
       .values({
         guildId,
@@ -100,7 +88,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       })
       .returning();
 
-    const emoji = RARIDADE_EMOJI[raridade] ?? "⚪";
+    const emoji = getRaridadeEmoji(emojis, raridade);
 
     const embed = new EmbedBuilder()
       .setTitle(`✅ Figurinha #${numero} adicionada ao catálogo!`)
@@ -117,7 +105,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     await interaction.editReply({ embeds: [embed] });
 
-    // Anunciar no canal publicamente
     await interaction.followUp({
       ephemeral: false,
       content: `📢 Nova figurinha **${emoji} ${titulo}** (${raridade}) foi adicionada ao catálogo! Use **/desbloquear-figurinha** para adicioná-la ao seu álbum.`,

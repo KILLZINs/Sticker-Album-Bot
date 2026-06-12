@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { logger } from "./logger.js";
 
 export const EMOJI_DEFAULTS = {
-  moedas: "💰",
+  moedas: "🪙",
   pacote_standard: "📦",
   pacote_deluxe: "🎁",
   pacote_ultimate: "⭐",

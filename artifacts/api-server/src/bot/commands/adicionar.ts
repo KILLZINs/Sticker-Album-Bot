@@ -1,21 +1,14 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
-  AttachmentBuilder,
 } from "discord.js";
 import { db } from "@workspace/db";
 import { figurinhasTable, albumsTable } from "@workspace/db";
 import { eq, and, count } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
+import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 
 const RARIDADES = ["comum", "incomum", "rara", "épica", "lendária"];
-const RARIDADE_EMOJI: Record<string, string> = {
-  comum: "⚪",
-  incomum: "🟢",
-  rara: "🔵",
-  épica: "🟣",
-  lendária: "🌟",
-};
 
 export const data = new SlashCommandBuilder()
   .setName("adicionar-figurinha")
@@ -72,6 +65,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   try {
+    const emojis = await getGuildEmojis(guildId);
+
     // Upsert do álbum
     const albumExistente = await db
       .select()
@@ -79,7 +74,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .where(and(eq(albumsTable.guildId, guildId), eq(albumsTable.userId, userId)))
       .limit(1);
 
-    // Contar figurinhas do usuário para definir número
     const totalResult = await db
       .select({ total: count() })
       .from(figurinhasTable)
@@ -88,7 +82,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const total = totalResult[0]?.total ?? 0;
     const numero = total + 1;
 
-    // Verificar se é repetida (mesmo titulo)
     const repetidaResult = await db
       .select()
       .from(figurinhasTable)
@@ -132,12 +125,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           totalFigurinhas: albumExistente[0]!.totalFigurinhas + 1,
           atualizadoEm: new Date(),
         })
-        .where(
-          and(eq(albumsTable.guildId, guildId), eq(albumsTable.userId, userId))
-        );
+        .where(and(eq(albumsTable.guildId, guildId), eq(albumsTable.userId, userId)));
     }
 
-    const emoji = RARIDADE_EMOJI[raridade] ?? "⚪";
+    const emoji = getRaridadeEmoji(emojis, raridade);
     const repetidaMsg = repetida ? "\n⚠️ **Figurinha repetida!**" : "";
 
     await interaction.editReply({

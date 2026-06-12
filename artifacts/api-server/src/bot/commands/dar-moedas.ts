@@ -6,6 +6,8 @@ import {
 } from "discord.js";
 import { logger } from "../lib/logger.js";
 import { addMoedas, getSaldo } from "../lib/moedas.js";
+import { getGuildEmojis } from "../lib/emoji-config.js";
+import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("dar-moedas")
@@ -39,17 +41,23 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   try {
+    const [emojis, moedaCfg] = await Promise.all([
+      getGuildEmojis(guildId),
+      getGuildMoedaConfig(guildId),
+    ]);
+
     await addMoedas(guildId, alvo.id, alvo.username, quantidade);
     const novoSaldo = await getSaldo(guildId, alvo.id);
+    const nomeMoeda = moedaCfg.nomeMoeda;
 
     const embed = new EmbedBuilder()
-      .setTitle("💰 Moedas enviadas!")
+      .setTitle(`${emojis.moedas} ${nomeMoeda.charAt(0).toUpperCase() + nomeMoeda.slice(1)} enviadas!`)
       .setDescription(
-        `**<@${alvo.id}>** recebeu **${quantidade} moedas** de <@${interaction.user.id}>!`
+        `**<@${alvo.id}>** recebeu **${quantidade} ${nomeMoeda}** de <@${interaction.user.id}>!`
       )
       .addFields(
-        { name: "💸 Moedas dadas", value: `+${quantidade}`, inline: true },
-        { name: "💰 Novo saldo", value: `${novoSaldo} moedas`, inline: true }
+        { name: "💸 Enviado", value: `+${quantidade}`, inline: true },
+        { name: `${emojis.moedas} Novo saldo`, value: `${novoSaldo} ${nomeMoeda}`, inline: true }
       )
       .setColor(0x470f78)
       .setThumbnail(alvo.displayAvatarURL())
@@ -58,7 +66,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     await interaction.editReply({ embeds: [embed] });
 
     await interaction.followUp({
-      content: `🎁 <@${alvo.id}> recebeu **${quantidade} moedas** de <@${interaction.user.id}>! 💰`,
+      content: `${emojis.moedas} <@${alvo.id}> recebeu **${quantidade} ${nomeMoeda}** de <@${interaction.user.id}>!`,
     });
   } catch (err) {
     logger.error({ err }, "Erro ao dar moedas");

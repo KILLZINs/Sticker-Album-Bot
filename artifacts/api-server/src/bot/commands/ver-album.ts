@@ -11,14 +11,7 @@ import { db } from "@workspace/db";
 import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and, ilike } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
-
-const RARIDADE_EMOJI: Record<string, string> = {
-  comum: "⚪",
-  incomum: "🟢",
-  rara: "🔵",
-  épica: "🟣",
-  lendária: "🌟",
-};
+import { getGuildEmojis, getRaridadeEmoji, type GuildEmojis } from "../lib/emoji-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("ver-album")
@@ -44,35 +37,35 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const isSelf = alvoUser.id === interaction.user.id;
 
   try {
-    const whereClause = busca
-      ? and(
-          eq(colecaoUsuarioTable.guildId, guildId),
-          eq(colecaoUsuarioTable.userId, userId),
-          ilike(catalogoFigurinhasTable.titulo, `%${busca}%`)
+    const [emojis, figurinhas] = await Promise.all([
+      getGuildEmojis(guildId),
+      db
+        .select({
+          colecaoId: colecaoUsuarioTable.id,
+          desbloqueadoEm: colecaoUsuarioTable.desbloqueadoEm,
+          catalogoId: catalogoFigurinhasTable.id,
+          numero: catalogoFigurinhasTable.numero,
+          titulo: catalogoFigurinhasTable.titulo,
+          descricao: catalogoFigurinhasTable.descricao,
+          raridade: catalogoFigurinhasTable.raridade,
+          imageUrl: catalogoFigurinhasTable.imageUrl,
+        })
+        .from(colecaoUsuarioTable)
+        .innerJoin(catalogoFigurinhasTable, eq(colecaoUsuarioTable.catalogoId, catalogoFigurinhasTable.id))
+        .where(
+          busca
+            ? and(
+                eq(colecaoUsuarioTable.guildId, guildId),
+                eq(colecaoUsuarioTable.userId, userId),
+                ilike(catalogoFigurinhasTable.titulo, `%${busca}%`)
+              )
+            : and(
+                eq(colecaoUsuarioTable.guildId, guildId),
+                eq(colecaoUsuarioTable.userId, userId)
+              )
         )
-      : and(
-          eq(colecaoUsuarioTable.guildId, guildId),
-          eq(colecaoUsuarioTable.userId, userId)
-        );
-
-    const figurinhas = await db
-      .select({
-        colecaoId: colecaoUsuarioTable.id,
-        desbloqueadoEm: colecaoUsuarioTable.desbloqueadoEm,
-        catalogoId: catalogoFigurinhasTable.id,
-        numero: catalogoFigurinhasTable.numero,
-        titulo: catalogoFigurinhasTable.titulo,
-        descricao: catalogoFigurinhasTable.descricao,
-        raridade: catalogoFigurinhasTable.raridade,
-        imageUrl: catalogoFigurinhasTable.imageUrl,
-      })
-      .from(colecaoUsuarioTable)
-      .innerJoin(
-        catalogoFigurinhasTable,
-        eq(colecaoUsuarioTable.catalogoId, catalogoFigurinhasTable.id)
-      )
-      .where(whereClause)
-      .orderBy(catalogoFigurinhasTable.numero);
+        .orderBy(catalogoFigurinhasTable.numero),
+    ]);
 
     if (figurinhas.length === 0) {
       if (busca) {
@@ -90,9 +83,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const totalPages = figurinhas.length;
     let page = 0;
 
-    const buildEmbed = (idx: number) => {
+    const buildEmbed = (idx: number, guildEmojis: GuildEmojis) => {
       const fig = figurinhas[idx]!;
-      const emoji = RARIDADE_EMOJI[fig.raridade] ?? "⚪";
+      const emoji = getRaridadeEmoji(guildEmojis, fig.raridade);
 
       return new EmbedBuilder()
         .setTitle(`📖 Álbum de ${alvoUser.username}${busca ? ` — busca: "${busca}"` : ""}`)
@@ -127,7 +120,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       );
 
     const msg = await interaction.editReply({
-      embeds: [buildEmbed(page)],
+      embeds: [buildEmbed(page, emojis)],
       components: totalPages > 1 ? [buildRow(page)] : [],
     });
 
@@ -142,7 +135,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     collector.on("collect", async (i) => {
       if (i.customId === "prev" && page > 0) page--;
       if (i.customId === "next" && page < totalPages - 1) page++;
-      await i.update({ embeds: [buildEmbed(page)], components: [buildRow(page)] });
+      await i.update({ embeds: [buildEmbed(page, emojis)], components: [buildRow(page)] });
     });
 
     collector.on("end", async () => {

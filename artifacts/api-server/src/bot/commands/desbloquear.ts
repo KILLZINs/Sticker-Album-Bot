@@ -8,14 +8,7 @@ import { db } from "@workspace/db";
 import { catalogoFigurinhasTable, colecaoUsuarioTable } from "@workspace/db";
 import { eq, and, ilike } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
-
-const RARIDADE_EMOJI: Record<string, string> = {
-  comum: "⚪",
-  incomum: "🟢",
-  rara: "🔵",
-  épica: "🟣",
-  lendária: "🌟",
-};
+import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("desbloquear-figurinha")
@@ -115,7 +108,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       catalogoId: figurinha.id,
     });
 
-    const emoji = RARIDADE_EMOJI[figurinha.raridade] ?? "⚪";
+    const emojis = await getGuildEmojis(guildId);
+    const emoji = getRaridadeEmoji(emojis, figurinha.raridade);
+
     await interaction.editReply(
       `✅ Figurinha **${emoji} ${figurinha.titulo}** desbloqueada para <@${alvo.id}>!`
     );
