@@ -5,25 +5,24 @@ import {
   ChatInputCommandInteraction,
   type SlashCommandOptionsOnlyBuilder,
 } from "discord.js";
-import { logger } from "./lib/logger.ts";
-import { deployCommands } from "./deploy-commands.ts";
-import { addMoedas } from "./lib/moedas.ts";
-import * as criarFigurinha from "./commands/criar-figurinha.ts";
-import * as desbloquear from "./commands/desbloquear.ts";
-import * as abrirPacote from "./commands/abrir-pacote.ts";
-import * as catalogo from "./commands/catalogo.ts";
-import * as verAlbum from "./commands/ver-album.ts";
-import * as figurinhas from "./commands/figurinhas.ts";
-import * as ranking from "./commands/ranking.ts";
-import * as proporTroca from "./commands/propor-troca.ts";
-import * as conquistas from "./commands/conquistas.ts";
-import * as rebirth from "./commands/rebirth.ts";
-import * as removerFigurinha from "./commands/remover.ts";
-import * as apagarFigurinha from "./commands/apagar-figurinha.ts";
-import * as help from "./commands/help.ts";
-import * as saldo from "./commands/saldo.ts";
-import * as darMoedas from "./commands/dar-moedas.ts";
-import * as forcereset from "./commands/forcereset.ts";
+import { logger } from "./lib/logger.js";
+import { deployCommands } from "./deploy-commands.js";
+import { addMoedas } from "./lib/moedas.js";
+import * as criarFigurinha from "./commands/criar-figurinha.js";
+import * as desbloquear from "./commands/desbloquear.js";
+import * as abrirPacote from "./commands/abrir-pacote.js";
+import * as catalogo from "./commands/catalogo.js";
+import * as verAlbum from "./commands/ver-album.js";
+import * as figurinhas from "./commands/figurinhas.js";
+import * as ranking from "./commands/ranking.js";
+import * as proporTroca from "./commands/propor-troca.js";
+import * as conquistas from "./commands/conquistas.js";
+import * as rebirth from "./commands/rebirth.js";
+import * as removerFigurinha from "./commands/remover.js";
+import * as apagarFigurinha from "./commands/apagar-figurinha.js";
+import * as help from "./commands/help.js";
+import * as saldo from "./commands/saldo.js";
+import * as darMoedas from "./commands/dar-moedas.js";
 
 interface Command {
   data: SlashCommandOptionsOnlyBuilder;
@@ -46,7 +45,6 @@ const allCommands: Command[] = [
   help,
   saldo,
   darMoedas,
-  forcereset,
 ];
 
 const commandMap = new Collection<string, Command>();
@@ -78,12 +76,16 @@ export async function startBot() {
     logger.info({ tag: c.user.tag }, "🤖 Bot do Álbum de Figurinhas online!");
   });
 
-  // Listener de mensagens — +2 moedas por mensagem com mais de 8 caracteres
+  // Listener de mensagens — +2 moedas por mensagem com 5 ou mais caracteres
   client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
     if (!message.guildId) return;
-    if (message.content.length <= 8) return;
-    await addMoedas(message.guildId, message.author.id, message.author.username, 2);
+    if (message.content.length < 5) return;
+    try {
+      await addMoedas(message.guildId, message.author.id, message.author.username, 2);
+    } catch (err) {
+      logger.warn({ err, userId: message.author.id }, "Falha ao adicionar moedas por mensagem");
+    }
   });
 
   client.on("interactionCreate", async (interaction) => {
