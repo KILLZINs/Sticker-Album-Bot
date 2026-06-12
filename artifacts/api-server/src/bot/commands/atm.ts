@@ -72,7 +72,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const embed = new EmbedBuilder()
       .setTitle(`🏧 Conta Bancária — ${alvo.displayName}`)
-      .setColor(0x2ecc71)
+      .setColor(0x7B2FBE)
       .setThumbnail(alvo.displayAvatarURL())
       .addFields(
         {

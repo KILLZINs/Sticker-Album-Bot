@@ -7,7 +7,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction: ChatInputCommandInteraction) {
   const embed = new EmbedBuilder()
     .setTitle("📖 Álbum de Figurinhas — Comandos")
-    .setColor(0x5865f2)
+    .setColor(0x7B2FBE)
     .setDescription(
       "Bem-vindo ao bot de figurinhas! Colecione, troque e compita com seus amigos!\n\n" +
         "💰 **Ganhe moedas:** envie mensagens com mais de 8 caracteres **(+2 moedas)**"

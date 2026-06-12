@@ -100,7 +100,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           `**Novos preços dos pacotinhos após o Rebirth:**\n${linhasPrecos}\n\n` +
           `Tem certeza que deseja fazer o Rebirth para **${proximoNome}**?`
       )
-      .setColor(0x5865f2)
+      .setColor(0x7B2FBE)
       .setTimestamp();
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(

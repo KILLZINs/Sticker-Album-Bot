@@ -118,7 +118,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         `<@${remetenteId}> deu a figurinha **${emoji} ${catalogoEntry.titulo}** para <@${destino.id}>!`
       )
       .setImage(catalogoEntry.imageUrl)
-      .setColor(0x57f287)
+      .setColor(0x9B59B6)
       .addFields(
         { name: "🎴 Figurinha", value: `#${catalogoEntry.numero} ${catalogoEntry.titulo}`, inline: true },
         { name: "✨ Raridade", value: `${emoji} ${catalogoEntry.raridade}`, inline: true },

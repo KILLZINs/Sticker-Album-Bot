@@ -129,7 +129,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             `✅ Histórico de pacotes diários removido\n\n` +
             `O catálogo global do servidor permanece intacto.`
         )
-        .setColor(0x57f287)
+        .setColor(0x9B59B6)
         .setTimestamp();
 
       await btn.update({ embeds: [embedSucesso], components: [] });

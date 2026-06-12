@@ -188,7 +188,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           `**<@${meuId}> oferece:**\n${emojiMinha} **#${minhaFigCatalogo.numero}** ${minhaFigCatalogo.titulo} (${minhaFigCatalogo.raridade})\n\n` +
           `**<@${meuId}> quer receber:**\n${emojiDele} **#${deleFigCatalogo.numero}** ${deleFigCatalogo.titulo} (${deleFigCatalogo.raridade})`
       )
-      .setColor(0xfee75c)
+      .setColor(0x7B2FBE)
       .addFields(
         {
           name: `${emojiMinha} Dá`,
@@ -301,7 +301,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             `**<@${meuId}>** recebeu: ${emojiDele} **${deleFigCatalogo.titulo}**\n` +
               `**<@${destino.id}>** recebeu: ${emojiMinha} **${minhaFigCatalogo.titulo}**`
           )
-          .setColor(0x57f287)
+          .setColor(0x9B59B6)
           .setTimestamp();
 
         await btnInteraction.update({
@@ -333,7 +333,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         await interaction
           .editReply({
             content: `⏰ A proposta de troca expirou — <@${destino.id}> não respondeu a tempo.`,
-            embeds: [embedProposta.setColor(0x99aab5)],
+            embeds: [embedProposta.setColor(0x4A235A)],
             components: [],
           })
           .catch(() => {});

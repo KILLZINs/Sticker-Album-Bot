@@ -51,7 +51,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const embed = new EmbedBuilder()
       .setTitle(`💰 Saldo de ${alvo.username}`)
-      .setColor(0xf1c40f)
+      .setColor(0x7B2FBE)
       .setThumbnail(alvo.displayAvatarURL())
       .addFields(
         {

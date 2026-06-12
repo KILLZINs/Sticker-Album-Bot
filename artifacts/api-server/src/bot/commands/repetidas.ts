@@ -79,7 +79,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const embed = new EmbedBuilder()
       .setTitle(`♻️ Figurinhas repetidas de ${alvoUser.username}`)
-      .setColor(0xfee75c)
+      .setColor(0x7B2FBE)
       .setThumbnail(alvoUser.displayAvatarURL())
       .setDescription(
         `**${repetidas.length} figurinha${repetidas.length > 1 ? "s" : ""} com cópias extras** ` +

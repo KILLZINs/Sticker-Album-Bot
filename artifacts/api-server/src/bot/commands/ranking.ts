@@ -75,7 +75,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const embed = new EmbedBuilder()
       .setTitle("🏆 Ranking do Álbum de Figurinhas")
-      .setColor(0xf1c40f)
+      .setColor(0x7B2FBE)
       .setDescription(linhas.join("\n") + posicaoMinha)
       .setFooter({ text: `Top ${top.length} colecionadores • Catálogo: ${totalCatalogo} figurinha${totalCatalogo !== 1 ? "s" : ""}` })
       .setTimestamp();

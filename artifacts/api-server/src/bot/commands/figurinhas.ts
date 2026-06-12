@@ -93,7 +93,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const embed = new EmbedBuilder()
       .setTitle(`📚 Figurinhas de ${alvoUser.username}${busca ? ` — "${busca}"` : ""}`)
-      .setColor(0x5865f2)
+      .setColor(0x7B2FBE)
       .setThumbnail(alvoUser.displayAvatarURL())
       .setDescription(
         `**Total: ${figurinhas.length} figurinha${figurinhas.length > 1 ? "s" : ""}**\n` +
