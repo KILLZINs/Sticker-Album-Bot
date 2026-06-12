@@ -65,8 +65,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           name: "🔁 Progressão (Rebirth)",
           value:
             `\`/rebirth\` — Reseta o álbum e sobe de nível (pacotes mais baratos!)\n` +
-            `  • ✨ Normal → 🥈 Prata: **-20%** nos pacotes\n` +
-            `  • 🥈 Prata → 🥇 Ouro: **-40%** nos pacotes\n` +
+            `  • ${emojis.nivel_normal} Normal → ${emojis.nivel_prata} Prata: **-20%** nos pacotes\n` +
+            `  • ${emojis.nivel_prata} Prata → ${emojis.nivel_ouro} Ouro: **-40%** nos pacotes\n` +
             `  ⚠️ Requer ter pelo menos 1 figurinha de cada raridade`,
           inline: false,
         },
@@ -74,10 +74,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           name: "🤝 Social",
           value:
             `\`/dar-figurinha @usuário número\` — Doa uma figurinha **repetida**\n` +
-            `  ⚠️ Somente nível ✨ Normal • 1 doação a cada 3 dias\n` +
+            `  ⚠️ Somente nível ${emojis.nivel_normal} Normal • 1 doação a cada 3 dias\n` +
             `\`/propor-troca @usuário\` — Propõe uma troca de figurinha\n` +
             `\`/comparar @usuário\` — Compara sua coleção com a de outro usuário\n` +
-            `\`/ranking\` — Top 10 colecionadores do servidor\n` +
+            `\`/ranking\` — Ranking completo com paginação (filtre por figurinhas ou ${nome})\n` +
             `\`/conquistas\` — Vê seus marcos e badges desbloqueados`,
           inline: false,
         },
@@ -89,7 +89,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             `\`/apagar-figurinha\` — Apaga figurinha do catálogo permanentemente\n` +
             `\`/dar-moedas\` — Dá ${nome} para um usuário\n` +
             `\`/forcereset @usuário\` — Reseta todos os dados de um usuário\n` +
-            `\`/configurar-emojis\` — Personaliza os emojis do bot\n` +
+            `\`/configurar-emojis\` — Personaliza emojis de moedas, pacotes, raridades e níveis\n` +
             `\`/configurar-moedas\` — Configura nome, ganho por mensagem e preços`,
           inline: false,
         }
