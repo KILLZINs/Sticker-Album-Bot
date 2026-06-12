@@ -65,6 +65,18 @@ export const pacotesDiariosTable = pgTable("pacotes_diarios", {
   ultimaAbertura: timestamp("ultima_abertura").notNull().defaultNow(),
 });
 
+// Cooldown de doação de figurinhas entre usuários
+export const doacaoCooldownTable = pgTable(
+  "doacao_cooldown",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    userId: text("user_id").notNull(),
+    ultimaDoacao: timestamp("ultima_doacao").notNull().defaultNow(),
+  },
+  (t) => [unique("doacao_cooldown_unique").on(t.guildId, t.userId)]
+);
+
 // Tabelas legadas — mantidas para compatibilidade
 export const figurinhasTable = pgTable("figurinhas", {
   id: serial("id").primaryKey(),
