@@ -13,10 +13,15 @@ export const EMOJI_DEFAULTS = {
   raridade_rara: "🔵",
   raridade_epica: "🟣",
   raridade_lendaria: "🌟",
+  nivel_normal: "✨",
+  nivel_prata: "🥈",
+  nivel_ouro: "🥇",
 } as const;
 
 export type EmojiChave = keyof typeof EMOJI_DEFAULTS;
 export type GuildEmojis = Record<EmojiChave, string>;
+
+export const NIVEL_NOME_TEXTO = ["Normal", "Prata", "Ouro"] as const;
 
 const cache = new Map<string, { emojis: GuildEmojis; ts: number }>();
 const TTL = 5 * 60 * 1000;
@@ -52,6 +57,17 @@ export function getRaridadeEmoji(emojis: GuildEmojis, raridade: string): string 
   };
   const chave = map[raridade];
   return chave ? emojis[chave] : "⚪";
+}
+
+export function getNivelEmoji(emojis: GuildEmojis, nivel: number): string {
+  const chaves: EmojiChave[] = ["nivel_normal", "nivel_prata", "nivel_ouro"];
+  const chave = chaves[nivel];
+  return chave ? emojis[chave] : "✨";
+}
+
+export function getNivelDisplay(emojis: GuildEmojis, nivel: number): string {
+  const texto = NIVEL_NOME_TEXTO[nivel] ?? "Normal";
+  return `${getNivelEmoji(emojis, nivel)} ${texto}`;
 }
 
 export function invalidateGuildCache(guildId: string): void {
