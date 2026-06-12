@@ -15,11 +15,12 @@ import {
   getSaldo,
   getNivelRebirth,
   setNivelRebirth,
-  NIVEL_NOME,
-  MAX_NIVEL,
   PACKS,
   calcularPreco,
+  MAX_NIVEL,
 } from "../lib/moedas.js";
+import { getGuildEmojis, getNivelDisplay } from "../lib/emoji-config.js";
+import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("rebirth")
@@ -33,16 +34,22 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const username = interaction.user.username;
 
   try {
-    const nivel = await getNivelRebirth(guildId, userId);
-    const saldo = await getSaldo(guildId, userId);
-    const nivelAtualNome = NIVEL_NOME[nivel] ?? "Normal";
+    const [nivel, saldo, emojis, moedaCfg] = await Promise.all([
+      getNivelRebirth(guildId, userId),
+      getSaldo(guildId, userId),
+      getGuildEmojis(guildId),
+      getGuildMoedaConfig(guildId),
+    ]);
+
+    const nivelAtualNome = getNivelDisplay(emojis, nivel);
+    const nomeMoeda = moedaCfg.nomeMoeda;
 
     if (nivel >= MAX_NIVEL) {
       const embed = new EmbedBuilder()
-        .setTitle("🥇 Nível Máximo Atingido!")
+        .setTitle(`${emojis.nivel_ouro} Nível Máximo Atingido!`)
         .setDescription(
           `Você já está no nível máximo: **${nivelAtualNome}**\n\n` +
-            `Parabéns por chegar ao topo! Continue colecionando figurinhas! 🎉`
+          `Parabéns por chegar ao topo! Continue colecionando figurinhas! 🎉`
         )
         .setColor(0x470f78)
         .setTimestamp();
@@ -50,7 +57,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    // Verificar se o usuário tem todas as figurinhas do catálogo
     const [{ totalCatalogo }] = await db
       .select({ totalCatalogo: count() })
       .from(catalogoFigurinhasTable)
@@ -59,20 +65,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const [{ totalUsuario }] = await db
       .select({ totalUsuario: count() })
       .from(colecaoUsuarioTable)
-      .where(
-        and(
-          eq(colecaoUsuarioTable.guildId, guildId),
-          eq(colecaoUsuarioTable.userId, userId)
-        )
-      );
+      .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, userId)));
 
     if (totalCatalogo === 0 || totalUsuario < totalCatalogo) {
       const embed = new EmbedBuilder()
         .setTitle("❌ Coleção incompleta!")
         .setDescription(
           `Você precisa coletar **TODAS** as figurinhas do catálogo antes de fazer o Rebirth.\n\n` +
-            `📊 Seu progresso: **${totalUsuario}/${totalCatalogo}** figurinhas\n\n` +
-            `Use **/catalogo** para ver quais figurinhas ainda faltam.`
+          `📊 Seu progresso: **${totalUsuario}/${totalCatalogo}** figurinhas\n\n` +
+          `Use **/catalogo** para ver quais figurinhas ainda faltam.`
         )
         .setColor(0x470f78)
         .setTimestamp();
@@ -81,13 +82,19 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
 
     const proximoNivel = nivel + 1;
-    const proximoNome = NIVEL_NOME[proximoNivel] ?? "Desconhecido";
+    const proximoNome = getNivelDisplay(emojis, proximoNivel);
 
-    const linhasPrecos = Object.values(PACKS)
-      .map((pack) => {
-        const precoAtual = calcularPreco(pack.precoBase, nivel);
-        const precoNovo = calcularPreco(pack.precoBase, proximoNivel);
-        return `${pack.emoji} **${pack.nome}**: ~~${precoAtual}~~ → **${precoNovo} moedas**`;
+    const precosBase: Record<string, number> = {
+      standard: moedaCfg.precoStandard,
+      deluxe: moedaCfg.precoDeluxe,
+      ultimate: moedaCfg.precoUltimate,
+    };
+
+    const linhasPrecos = Object.entries(PACKS)
+      .map(([tipo, pack]) => {
+        const precoAtual = calcularPreco(precosBase[tipo] ?? pack.precoBase, nivel);
+        const precoNovo = calcularPreco(precosBase[tipo] ?? pack.precoBase, proximoNivel);
+        return `${pack.emoji} **${pack.nome}**: ~~${precoAtual}~~ → **${precoNovo} ${nomeMoeda}**`;
       })
       .join("\n");
 
@@ -95,10 +102,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .setTitle(`🔁 Rebirth — ${nivelAtualNome} → ${proximoNome}`)
       .setDescription(
         `> ⚠️ **ATENÇÃO:** Seu álbum será **completamente resetado**!\n` +
-          `> Todas as suas figurinhas serão perdidas.\n` +
-          `> Suas moedas (**${saldo}**) e conquistas serão **mantidas**.\n\n` +
-          `**Novos preços dos pacotinhos após o Rebirth:**\n${linhasPrecos}\n\n` +
-          `Tem certeza que deseja fazer o Rebirth para **${proximoNome}**?`
+        `> Todas as suas figurinhas serão perdidas.\n` +
+        `> Suas ${nomeMoeda} (**${saldo}**) e conquistas serão **mantidas**.\n\n` +
+        `**Novos preços dos pacotinhos após o Rebirth:**\n${linhasPrecos}\n\n` +
+        `Tem certeza que deseja fazer o Rebirth para **${proximoNome}**?`
       )
       .setColor(0x7B2FBE)
       .setTimestamp();
@@ -130,15 +137,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         return;
       }
 
-      // Apagar álbum inteiro do usuário neste servidor
-      await db
-        .delete(colecaoUsuarioTable)
-        .where(
-          and(
-            eq(colecaoUsuarioTable.guildId, guildId),
-            eq(colecaoUsuarioTable.userId, userId)
-          )
-        );
+      await db.delete(colecaoUsuarioTable).where(
+        and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, userId))
+      );
 
       await setNivelRebirth(guildId, userId, username, proximoNivel);
 
@@ -146,8 +147,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         .setTitle(`🎉 Rebirth concluído! Bem-vindo ao ${proximoNome}!`)
         .setDescription(
           `Seu álbum foi resetado e agora você é **${proximoNome}**!\n\n` +
-            `**Seus novos preços de pacotinhos:**\n${linhasPrecos}\n\n` +
-            `Abra pacotinhos para reconstruir seu álbum! 🚀`
+          `**Seus novos preços de pacotinhos:**\n${linhasPrecos}\n\n` +
+          `Abra pacotinhos para reconstruir seu álbum! 🚀`
         )
         .setColor(0x470f78)
         .setTimestamp();
@@ -157,13 +158,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     collector.on("end", async (collected) => {
       if (collected.size === 0) {
-        await interaction
-          .editReply({
-            content: "⏰ Rebirth expirou — nenhuma ação tomada.",
-            embeds: [],
-            components: [],
-          })
-          .catch(() => {});
+        await interaction.editReply({ content: "⏰ Rebirth expirou — nenhuma ação tomada.", embeds: [], components: [] }).catch(() => {});
       }
     });
   } catch (err) {
