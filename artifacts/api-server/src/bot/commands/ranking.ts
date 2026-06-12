@@ -5,12 +5,12 @@ import {
 } from "discord.js";
 import { db } from "@workspace/db";
 import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
-import { eq, desc, count } from "drizzle-orm";
+import { eq, desc, count, countDistinct } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 
 export const data = new SlashCommandBuilder()
   .setName("ranking")
-  .setDescription("Mostra o ranking de quem tem mais figurinhas desbloqueadas");
+  .setDescription("Mostra o ranking de quem tem mais figurinhas únicas desbloqueadas");
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
@@ -24,22 +24,22 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .from(catalogoFigurinhasTable)
       .where(eq(catalogoFigurinhasTable.guildId, guildId));
 
-    // Top 10 por figurinhas desbloqueadas
+    // Top 10 por figurinhas ÚNICAS desbloqueadas (sem contar duplicatas)
     const top = await db
       .select({
         userId: colecaoUsuarioTable.userId,
         username: colecaoUsuarioTable.username,
-        total: count(),
+        total: countDistinct(colecaoUsuarioTable.catalogoId),
       })
       .from(colecaoUsuarioTable)
       .where(eq(colecaoUsuarioTable.guildId, guildId))
       .groupBy(colecaoUsuarioTable.userId, colecaoUsuarioTable.username)
-      .orderBy(desc(count()))
+      .orderBy(desc(countDistinct(colecaoUsuarioTable.catalogoId)))
       .limit(10);
 
     if (top.length === 0) {
       await interaction.editReply(
-        "📭 Ninguém desbloqueou figurinhas ainda!\n\nUse **/desbloquear-figurinha** para começar."
+        "📭 Ninguém desbloqueou figurinhas ainda!\n\nAbra um pacote com **/abrir-pacote** para começar."
       );
       return;
     }
@@ -50,7 +50,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const pos = medalhas[i] ?? `**${i + 1}.**`;
       const voce = entry.userId === interaction.user.id ? " 👈" : "";
       const progresso = totalCatalogo > 0 ? Math.round((entry.total / totalCatalogo) * 100) : 0;
-      return `${pos} <@${entry.userId}> — **${entry.total}**/${totalCatalogo} (${progresso}%)${voce}`;
+      return `${pos} <@${entry.userId}> — **${entry.total}**/${totalCatalogo} únicas (${progresso}%)${voce}`;
     });
 
     // Posição do usuário atual se fora do top 10
@@ -60,16 +60,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const todos = await db
         .select({
           userId: colecaoUsuarioTable.userId,
-          total: count(),
+          total: countDistinct(colecaoUsuarioTable.catalogoId),
         })
         .from(colecaoUsuarioTable)
         .where(eq(colecaoUsuarioTable.guildId, guildId))
         .groupBy(colecaoUsuarioTable.userId)
-        .orderBy(desc(count()));
+        .orderBy(desc(countDistinct(colecaoUsuarioTable.catalogoId)));
 
       const meuIdx = todos.findIndex((e) => e.userId === interaction.user.id);
       if (meuIdx >= 0) {
-        posicaoMinha = `\n\n📍 Sua posição: **${meuIdx + 1}º** com **${todos[meuIdx]!.total}** figurinha${todos[meuIdx]!.total !== 1 ? "s" : ""}`;
+        posicaoMinha = `\n\n📍 Sua posição: **${meuIdx + 1}º** com **${todos[meuIdx]!.total}** figurinha${todos[meuIdx]!.total !== 1 ? "s" : ""} única${todos[meuIdx]!.total !== 1 ? "s" : ""}`;
       }
     }
 

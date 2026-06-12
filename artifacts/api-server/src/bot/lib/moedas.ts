@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
 import { moedasUsuarioTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
+import { logger } from "./logger.js";
 
 // Nomes e descontos por nível de rebirth
 export const NIVEL_NOME = ["✨ Normal", "🥈 Prata", "🥇 Ouro"] as const;
@@ -51,23 +52,17 @@ export async function addMoedas(
   userId: string,
   username: string,
   amount: number
-): Promise<number> {
-  // Atomic upsert: insert the row if it doesn't exist, otherwise increment
-  // the balance. RETURNING gives us the actual new saldo without a second
-  // round-trip, and lets callers verify the operation succeeded.
-  const [updated] = await db
+): Promise<void> {
+  await db
     .insert(moedasUsuarioTable)
     .values({ guildId, userId, username, saldo: amount, nivelRebirth: 0 })
     .onConflictDoUpdate({
       target: [moedasUsuarioTable.guildId, moedasUsuarioTable.userId],
       set: {
         saldo: sql`${moedasUsuarioTable.saldo} + ${amount}`,
-        username: sql`excluded.username`,
+        username,
       },
-    })
-    .returning({ novoSaldo: moedasUsuarioTable.saldo });
-
-  return updated.novoSaldo;
+    });
 }
 
 export async function deductMoedas(
@@ -75,32 +70,16 @@ export async function deductMoedas(
   userId: string,
   username: string,
   amount: number
-): Promise<number> {
-  // Ensure the row exists before attempting the atomic deduction
+): Promise<void> {
   await upsertRow(guildId, userId, username);
-
-  // Single atomic UPDATE: only succeeds when saldo >= amount, preventing
-  // race conditions where two concurrent purchases both pass a pre-check.
-  // Returns the new saldo so callers don't need a second round-trip.
-  const [updated] = await db
-    .update(moedasUsuarioTable)
-    .set({ saldo: sql`${moedasUsuarioTable.saldo} - ${amount}` })
-    .where(
-      and(
-        eq(moedasUsuarioTable.guildId, guildId),
-        eq(moedasUsuarioTable.userId, userId),
-        sql`${moedasUsuarioTable.saldo} >= ${amount}`
-      )
-    )
-    .returning({ novoSaldo: moedasUsuarioTable.saldo });
-
-  if (!updated) {
-    // Row was not updated — balance was insufficient at the moment of the write
-    const saldo = await getSaldo(guildId, userId);
+  const saldo = await getSaldo(guildId, userId);
+  if (saldo < amount) {
     throw new Error(`Saldo insuficiente: tem ${saldo}, precisa de ${amount}`);
   }
-
-  return updated.novoSaldo;
+  await db
+    .update(moedasUsuarioTable)
+    .set({ saldo: sql`${moedasUsuarioTable.saldo} - ${amount}` })
+    .where(and(eq(moedasUsuarioTable.guildId, guildId), eq(moedasUsuarioTable.userId, userId)));
 }
 
 export async function setNivelRebirth(
