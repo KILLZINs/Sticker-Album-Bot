@@ -17,7 +17,7 @@ import * as catalogo from "./commands/catalogo.js";
 import * as verAlbum from "./commands/ver-album.js";
 import * as figurinhas from "./commands/figurinhas.js";
 import * as ranking from "./commands/ranking.js";
-import * as proporTroca from "./commands/propor-troca.js";
+import * as trocar from "./commands/trocar.js";
 import * as conquistas from "./commands/conquistas.js";
 import * as rebirth from "./commands/rebirth.js";
 import * as removerFigurinha from "./commands/remover.js";
@@ -31,6 +31,8 @@ import * as repetidas from "./commands/repetidas.js";
 import * as darFigurinha from "./commands/dar-figurinha.js";
 import * as configurarEmojis from "./commands/configurar-emojis.js";
 import * as configurarMoedas from "./commands/configurar-moedas.js";
+import * as configurarFigurinhas from "./commands/configurar-figurinhas.js";
+import * as modificarFigurinha from "./commands/modificar-figurinha.js";
 import * as biografia from "./commands/biografia.js";
 import * as comparar from "./commands/comparar.js";
 
@@ -47,7 +49,7 @@ const allCommands: Command[] = [
   verAlbum,
   figurinhas,
   ranking,
-  proporTroca,
+  trocar,
   conquistas,
   rebirth,
   removerFigurinha,
@@ -61,6 +63,8 @@ const allCommands: Command[] = [
   darFigurinha,
   configurarEmojis,
   configurarMoedas,
+  configurarFigurinhas,
+  modificarFigurinha,
   biografia,
   comparar,
 ];
@@ -92,7 +96,6 @@ export async function startBot() {
     logger.info({ tag: c.user.tag }, "🤖 Bot do Álbum de Figurinhas online!");
   });
 
-  // Listener de mensagens — moedas por mensagem configurável por servidor
   client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
     if (!message.guildId) return;
@@ -106,59 +109,45 @@ export async function startBot() {
   });
 
   client.on("interactionCreate", async (interaction: Interaction) => {
-    // --- Botões do painel de emojis (individuais) ---
+    // --- Emojis ---
     if (interaction.isButton() && interaction.customId.startsWith("emoji_btn_")) {
-      await configurarEmojis.handleEmojiButton(interaction).catch((err) => {
-        logger.error({ err }, "Erro ao processar botão de emoji config");
-      });
+      await configurarEmojis.handleEmojiButton(interaction).catch((err) => logger.error({ err }, "Erro emoji btn"));
       return;
     }
-
-    // --- Botões de confirmação/cancelamento de reset de emojis ---
-    if (
-      interaction.isButton() &&
-      (interaction.customId.startsWith("emoji_reset_confirm_") ||
-        interaction.customId.startsWith("emoji_reset_cancel_"))
-    ) {
-      await configurarEmojis.handleResetButton(interaction).catch((err) => {
-        logger.error({ err }, "Erro ao processar reset de emojis");
-      });
+    if (interaction.isButton() && (interaction.customId.startsWith("emoji_reset_confirm_") || interaction.customId.startsWith("emoji_reset_cancel_"))) {
+      await configurarEmojis.handleResetButton(interaction).catch((err) => logger.error({ err }, "Erro emoji reset"));
       return;
     }
-
-    // --- Modais do painel de emojis ---
     if (interaction.isModalSubmit() && interaction.customId.startsWith("emoji_modal_")) {
-      await configurarEmojis.handleEmojiModal(interaction).catch((err) => {
-        logger.error({ err }, "Erro ao processar modal de emoji config");
-      });
+      await configurarEmojis.handleEmojiModal(interaction).catch((err) => logger.error({ err }, "Erro emoji modal"));
       return;
     }
 
-    // --- Botões do painel de moedas ---
+    // --- Moedas ---
     if (interaction.isButton() && interaction.customId.startsWith("moeda_btn_")) {
-      await configurarMoedas.handleMoedaButton(interaction).catch((err) => {
-        logger.error({ err }, "Erro ao processar botão de moeda config");
-      });
+      await configurarMoedas.handleMoedaButton(interaction).catch((err) => logger.error({ err }, "Erro moeda btn"));
       return;
     }
-
-    // --- Botões de confirmação/cancelamento de reset de moedas ---
-    if (
-      interaction.isButton() &&
-      (interaction.customId.startsWith("moeda_reset_confirm_") ||
-        interaction.customId.startsWith("moeda_reset_cancel_"))
-    ) {
-      await configurarMoedas.handleMoedaResetButton(interaction).catch((err) => {
-        logger.error({ err }, "Erro ao processar reset de moeda config");
-      });
+    if (interaction.isButton() && (interaction.customId.startsWith("moeda_reset_confirm_") || interaction.customId.startsWith("moeda_reset_cancel_"))) {
+      await configurarMoedas.handleMoedaResetButton(interaction).catch((err) => logger.error({ err }, "Erro moeda reset"));
       return;
     }
-
-    // --- Modais do painel de moedas ---
     if (interaction.isModalSubmit() && interaction.customId.startsWith("moeda_modal_")) {
-      await configurarMoedas.handleMoedaModal(interaction).catch((err) => {
-        logger.error({ err }, "Erro ao processar modal de moeda config");
-      });
+      await configurarMoedas.handleMoedaModal(interaction).catch((err) => logger.error({ err }, "Erro moeda modal"));
+      return;
+    }
+
+    // --- Figurinhas config ---
+    if (interaction.isButton() && interaction.customId.startsWith("fig_btn_")) {
+      await configurarFigurinhas.handleFigurinhaButton(interaction).catch((err) => logger.error({ err }, "Erro fig btn"));
+      return;
+    }
+    if (interaction.isButton() && (interaction.customId.startsWith("fig_reset_confirm_") || interaction.customId.startsWith("fig_reset_cancel_"))) {
+      await configurarFigurinhas.handleFigurinhaResetButton(interaction).catch((err) => logger.error({ err }, "Erro fig reset"));
+      return;
+    }
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("fig_modal_")) {
+      await configurarFigurinhas.handleFigurinhaModal(interaction).catch((err) => logger.error({ err }, "Erro fig modal"));
       return;
     }
 
