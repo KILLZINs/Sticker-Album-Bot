@@ -19,6 +19,7 @@ import * as atm from "./commands/atm.js";
 import * as forceReset from "./commands/forcereset.js";
 import * as repetidas from "./commands/repetidas.js";
 import * as darFigurinha from "./commands/dar-figurinha.js";
+import * as configurarEmojis from "./commands/configurar-emojis.js";
 
 const commands = [
   criarFigurinha.data,
@@ -40,6 +41,7 @@ const commands = [
   forceReset.data,
   repetidas.data,
   darFigurinha.data,
+  configurarEmojis.data,
 ].map((cmd) => cmd.toJSON());
 
 export async function deployCommands() {
