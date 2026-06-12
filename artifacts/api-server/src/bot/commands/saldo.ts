@@ -7,7 +7,6 @@ import { logger } from "../lib/logger.js";
 import {
   getSaldo,
   getNivelRebirth,
-  NIVEL_NOME,
   PACKS,
   calcularPreco,
   MAX_NIVEL,
@@ -18,10 +17,7 @@ import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("saldo")
-  .setDescription("Veja suas moedas, nível de rebirth e preços dos pacotinhos")
-  .addUserOption((opt) =>
-    opt.setName("usuario").setDescription("Ver saldo de outro usuário").setRequired(false)
-  );
+  .setDescription("Veja suas moedas, nível de rebirth e preços dos pacotinhos");
 
 const PACK_EMOJI_CHAVE: Record<TipoPacote, keyof GuildEmojis> = {
   standard: "pacote_standard",
@@ -32,9 +28,8 @@ const PACK_EMOJI_CHAVE: Record<TipoPacote, keyof GuildEmojis> = {
 export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
 
-  const alvo = interaction.options.getUser("usuario") ?? interaction.user;
   const guildId = interaction.guildId!;
-  const isSelf = alvo.id === interaction.user.id;
+  const alvo = interaction.user;
 
   try {
     const [saldo, nivel, emojis, moedaCfg] = await Promise.all([
@@ -91,11 +86,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           inline: false,
         }
       )
-      .setFooter({
-        text: isSelf
-          ? "✅ = você tem moedas suficientes • ❌ = saldo insuficiente"
-          : `Consultando saldo de ${alvo.username}`,
-      })
+      .setFooter({ text: "✅ = moedas suficientes • ❌ = saldo insuficiente • Use /atm @usuario para ver o saldo de outros" })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
