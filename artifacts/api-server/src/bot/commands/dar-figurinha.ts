@@ -12,7 +12,7 @@ import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 import { getNivelRebirth } from "../lib/moedas.js";
 
 const COOLDOWN_DIAS = 3;
-const NIVEL_MAXIMO_DOACAO = 0; // só nível Normal (0) pode dar e receber
+const NIVEL_MAXIMO_DOACAO = 0;
 
 export const data = new SlashCommandBuilder()
   .setName("dar-figurinha")
@@ -50,7 +50,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   try {
     const emojis = await getGuildEmojis(guildId);
 
-    // Verificar nível do remetente
     const nivelRemetente = await getNivelRebirth(guildId, remetenteId);
     if (nivelRemetente > NIVEL_MAXIMO_DOACAO) {
       await interaction.editReply(
@@ -61,7 +60,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    // Verificar nível do destinatário
     const nivelDestino = await getNivelRebirth(guildId, destino.id);
     if (nivelDestino > NIVEL_MAXIMO_DOACAO) {
       await interaction.editReply(
@@ -72,7 +70,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    // Verificar cooldown do remetente (1 doação a cada 3 dias)
     const [cooldownRow] = await db
       .select({ ultimaDoacao: doacaoCooldownTable.ultimaDoacao })
       .from(doacaoCooldownTable)
@@ -97,7 +94,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       }
     }
 
-    // Buscar a figurinha no catálogo
     const [catalogoEntry] = await db
       .select()
       .from(catalogoFigurinhasTable)
@@ -114,7 +110,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    // Verificar se o remetente tem 2+ cópias (só pode dar se for repetida)
     const copiasRemetente = await db
       .select({ total: count() })
       .from(colecaoUsuarioTable)
@@ -143,7 +138,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    // Buscar UMA cópia da coleção do remetente para remover
     const [minhaColecao] = await db
       .select({ id: colecaoUsuarioTable.id })
       .from(colecaoUsuarioTable)
@@ -156,7 +150,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       )
       .limit(1);
 
-    // Remover a cópia do remetente e adicionar ao destinatário
     await db.delete(colecaoUsuarioTable).where(eq(colecaoUsuarioTable.id, minhaColecao!.id));
     await db.insert(colecaoUsuarioTable).values({
       guildId,
@@ -165,14 +158,19 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       catalogoId: catalogoEntry.id,
     });
 
-    // Atualizar/inserir cooldown do remetente
-    const updatedCooldown = await db
-      .update(doacaoCooldownTable)
-      .set({ ultimaDoacao: sql`now()` })
+    // Atualizar cooldown — SELECT explícito para não depender de constraint no banco
+    const [cooldownExistente] = await db
+      .select({ id: doacaoCooldownTable.id })
+      .from(doacaoCooldownTable)
       .where(and(eq(doacaoCooldownTable.guildId, guildId), eq(doacaoCooldownTable.userId, remetenteId)))
-      .returning({ id: doacaoCooldownTable.id });
+      .limit(1);
 
-    if (updatedCooldown.length === 0) {
+    if (cooldownExistente) {
+      await db
+        .update(doacaoCooldownTable)
+        .set({ ultimaDoacao: sql`now()` })
+        .where(and(eq(doacaoCooldownTable.guildId, guildId), eq(doacaoCooldownTable.userId, remetenteId)));
+    } else {
       await db.insert(doacaoCooldownTable).values({ guildId, userId: remetenteId });
     }
 
@@ -201,7 +199,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
+    const mensagemErro = err instanceof Error ? err.message : String(err);
     logger.error({ err }, "Erro ao dar figurinha");
-    await interaction.editReply("❌ Erro ao transferir a figurinha. Tente novamente.");
+    await interaction.editReply(`❌ Erro ao transferir a figurinha.\n\`\`\`\n${mensagemErro}\n\`\`\``);
   }
 }
