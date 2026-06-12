@@ -4,13 +4,23 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import { db } from "@workspace/db";
-import { figurinhasTable, albumsTable } from "@workspace/db";
+import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
+import { verificarConquistas, anunciarConquistas } from "../lib/conquistas.js";
+
+// RARIDADE_EMOJI
+const RARIDADE_EMOJI: Record<string, string> = {
+  comum: "⚪",
+  incomum: "🟢",
+  rara: "🔵",
+  épica: "🟣",
+  lendária: "🌟",
+};
 
 export const data = new SlashCommandBuilder()
   .setName("dar-figurinha")
-  .setDescription("Dá uma das suas figurinhas para outro usuário")
+  .setDescription("Dá uma cópia de uma figurinha sua para outro usuário")
   .addUserOption((opt) =>
     opt
       .setName("usuario")
@@ -20,18 +30,10 @@ export const data = new SlashCommandBuilder()
   .addIntegerOption((opt) =>
     opt
       .setName("numero")
-      .setDescription("Número da figurinha que você quer dar")
+      .setDescription("Número da figurinha no catálogo (use /catalogo para ver)")
       .setRequired(true)
       .setMinValue(1)
   );
-
-const RARIDADE_EMOJI: Record<string, string> = {
-  comum: "⚪",
-  incomum: "🟢",
-  rara: "🔵",
-  épica: "🟣",
-  lendária: "🌟",
-};
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
@@ -53,136 +55,73 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   try {
-    // Buscar a figurinha do remetente
-    const [figurinha] = await db
+    // Buscar a figurinha no catálogo pelo número
+    const [catalogoEntry] = await db
       .select()
-      .from(figurinhasTable)
+      .from(catalogoFigurinhasTable)
       .where(
         and(
-          eq(figurinhasTable.guildId, guildId),
-          eq(figurinhasTable.ownerId, remetenteId),
-          eq(figurinhasTable.numero, numero)
+          eq(catalogoFigurinhasTable.guildId, guildId),
+          eq(catalogoFigurinhasTable.numero, numero)
         )
       )
       .limit(1);
 
-    if (!figurinha) {
-      await interaction.editReply(`❌ Você não tem uma figurinha com o número **#${numero}**!`);
+    if (!catalogoEntry) {
+      await interaction.editReply(`❌ Não existe figurinha com o número **#${numero}** no catálogo!`);
       return;
     }
 
-    // Verificar se o destinatário já tem a mesma figurinha (pelo título)
-    const [destinatarioTemRepetida] = await db
+    // Verificar se o remetente tem pelo menos uma cópia
+    const [minhaColecao] = await db
       .select()
-      .from(figurinhasTable)
+      .from(colecaoUsuarioTable)
       .where(
         and(
-          eq(figurinhasTable.guildId, guildId),
-          eq(figurinhasTable.ownerId, destino.id),
-          eq(figurinhasTable.titulo, figurinha.titulo)
+          eq(colecaoUsuarioTable.guildId, guildId),
+          eq(colecaoUsuarioTable.userId, remetenteId),
+          eq(colecaoUsuarioTable.catalogoId, catalogoEntry.id)
         )
       )
       .limit(1);
 
-    // Contar figurinhas do destinatário para novo número
-    const destinatarioFigurinhas = await db
-      .select()
-      .from(figurinhasTable)
-      .where(
-        and(
-          eq(figurinhasTable.guildId, guildId),
-          eq(figurinhasTable.ownerId, destino.id)
-        )
+    if (!minhaColecao) {
+      await interaction.editReply(
+        `❌ Você não tem a figurinha **#${numero} ${catalogoEntry.titulo}** na sua coleção!`
       );
+      return;
+    }
 
-    const novoNumero = destinatarioFigurinhas.length + 1;
-    const seraRepetida = !!destinatarioTemRepetida;
-
-    // Transferir: atualizar dono da figurinha
+    // Remover UMA cópia do remetente e dar ao destinatário
     await db
-      .update(figurinhasTable)
-      .set({
-        ownerId: destino.id,
-        ownerUsername: destino.username,
-        numero: novoNumero,
-        repetida: seraRepetida,
-      })
-      .where(eq(figurinhasTable.id, figurinha.id));
+      .delete(colecaoUsuarioTable)
+      .where(eq(colecaoUsuarioTable.id, minhaColecao.id));
 
-    // Atualizar álbum do remetente
-    const albumRemetente = await db
-      .select()
-      .from(albumsTable)
-      .where(
-        and(
-          eq(albumsTable.guildId, guildId),
-          eq(albumsTable.userId, remetenteId)
-        )
-      )
-      .limit(1);
+    await db.insert(colecaoUsuarioTable).values({
+      guildId,
+      userId: destino.id,
+      username: destino.username,
+      catalogoId: catalogoEntry.id,
+    });
 
-    if (albumRemetente[0]) {
-      await db
-        .update(albumsTable)
-        .set({
-          totalFigurinhas: Math.max(0, albumRemetente[0].totalFigurinhas - 1),
-          atualizadoEm: new Date(),
-        })
-        .where(
-          and(
-            eq(albumsTable.guildId, guildId),
-            eq(albumsTable.userId, remetenteId)
-          )
-        );
+    // Verificar conquistas do destinatário
+    const novasConquistas = await verificarConquistas(guildId, destino.id, destino.username, {});
+    if (novasConquistas.length > 0) {
+      await anunciarConquistas(interaction.channelId!, destino.id, novasConquistas, interaction.client);
     }
 
-    // Upsert álbum do destinatário
-    const albumDestino = await db
-      .select()
-      .from(albumsTable)
-      .where(
-        and(
-          eq(albumsTable.guildId, guildId),
-          eq(albumsTable.userId, destino.id)
-        )
-      )
-      .limit(1);
-
-    if (albumDestino[0]) {
-      await db
-        .update(albumsTable)
-        .set({
-          totalFigurinhas: albumDestino[0].totalFigurinhas + 1,
-          atualizadoEm: new Date(),
-        })
-        .where(
-          and(
-            eq(albumsTable.guildId, guildId),
-            eq(albumsTable.userId, destino.id)
-          )
-        );
-    } else {
-      await db.insert(albumsTable).values({
-        guildId,
-        userId: destino.id,
-        username: destino.username,
-        totalFigurinhas: 1,
-      });
-    }
-
-    const emoji = RARIDADE_EMOJI[figurinha.raridade] ?? "⚪";
+    const emoji = RARIDADE_EMOJI[catalogoEntry.raridade] ?? "⚪";
 
     const embed = new EmbedBuilder()
       .setTitle("🎁 Figurinha transferida!")
       .setDescription(
-        `<@${remetenteId}> deu a figurinha **${emoji} ${figurinha.titulo}** para <@${destino.id}>!`
+        `<@${remetenteId}> deu a figurinha **${emoji} ${catalogoEntry.titulo}** para <@${destino.id}>!`
       )
-      .setImage(figurinha.imageUrl)
+      .setImage(catalogoEntry.imageUrl)
       .setColor(0x57f287)
       .addFields(
-        { name: "Raridade", value: `${emoji} ${figurinha.raridade}`, inline: true },
-        { name: "Número novo", value: `#${novoNumero}`, inline: true },
-        { name: "Repetida", value: seraRepetida ? "⚠️ Sim" : "✅ Não", inline: true }
+        { name: "🎴 Figurinha", value: `#${catalogoEntry.numero} ${catalogoEntry.titulo}`, inline: true },
+        { name: "✨ Raridade", value: `${emoji} ${catalogoEntry.raridade}`, inline: true },
       )
       .setFooter({ text: `De ${remetenteUsername} para ${destino.username}` })
       .setTimestamp();
