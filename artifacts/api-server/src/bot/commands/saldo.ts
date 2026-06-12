@@ -13,7 +13,7 @@ import {
   MAX_NIVEL,
   type TipoPacote,
 } from "../lib/moedas.js";
-import { getGuildEmojis, type GuildEmojis } from "../lib/emoji-config.js";
+import { getGuildEmojis, getNivelDisplay, type GuildEmojis } from "../lib/emoji-config.js";
 import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 
 export const data = new SlashCommandBuilder()
@@ -44,7 +44,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       getGuildMoedaConfig(guildId),
     ]);
 
-    const nivelNome = NIVEL_NOME[nivel] ?? "Normal";
+    const nivelNome = getNivelDisplay(emojis, nivel);
     const isMaxNivel = nivel >= MAX_NIVEL;
     const nomeMoeda = moedaCfg.nomeMoeda;
 
@@ -65,9 +65,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       })
       .join("\n");
 
-    const proximoNivel = isMaxNivel ? null : NIVEL_NOME[nivel + 1];
+    const proximoNivel = isMaxNivel ? null : getNivelDisplay(emojis, nivel + 1);
     const rebirthTxt = isMaxNivel
-      ? "🥇 Nível máximo atingido!"
+      ? "🏅 Nível máximo atingido!"
       : `➡️ Próximo nível: **${proximoNivel}** via \`/rebirth\``;
 
     const embed = new EmbedBuilder()
