@@ -3,6 +3,7 @@ import {
   GatewayIntentBits,
   Collection,
   ChatInputCommandInteraction,
+  Interaction,
   type SlashCommandOptionsOnlyBuilder,
 } from "discord.js";
 import { logger } from "./lib/logger.js";
@@ -25,6 +26,8 @@ import * as saldo from "./commands/saldo.js";
 import * as darMoedas from "./commands/dar-moedas.js";
 import * as atm from "./commands/atm.js";
 import * as forceReset from "./commands/forcereset.js";
+import * as repetidas from "./commands/repetidas.js";
+import * as darFigurinha from "./commands/dar-figurinha.js";
 
 interface Command {
   data: SlashCommandOptionsOnlyBuilder;
@@ -49,6 +52,8 @@ const allCommands: Command[] = [
   darMoedas,
   atm,
   forceReset,
+  repetidas,
+  darFigurinha,
 ];
 
 const commandMap = new Collection<string, Command>();
@@ -92,7 +97,7 @@ export async function startBot() {
     }
   });
 
-  client.on("interactionCreate", async (interaction) => {
+  client.on("interactionCreate", async (interaction: Interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
     const command = commandMap.get(interaction.commandName);
