@@ -11,7 +11,9 @@ import {
   PACKS,
   calcularPreco,
   MAX_NIVEL,
+  type TipoPacote,
 } from "../lib/moedas.js";
+import { getGuildEmojis, type GuildEmojis } from "../lib/emoji-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("saldo")
@@ -19,6 +21,12 @@ export const data = new SlashCommandBuilder()
   .addUserOption((opt) =>
     opt.setName("usuario").setDescription("Ver saldo de outro usuário").setRequired(false)
   );
+
+const PACK_EMOJI_CHAVE: Record<TipoPacote, keyof GuildEmojis> = {
+  standard: "pacote_standard",
+  deluxe: "pacote_deluxe",
+  ultimate: "pacote_ultimate",
+};
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
@@ -28,19 +36,24 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const isSelf = alvo.id === interaction.user.id;
 
   try {
-    const saldo = await getSaldo(guildId, alvo.id);
-    const nivel = await getNivelRebirth(guildId, alvo.id);
+    const [saldo, nivel, emojis] = await Promise.all([
+      getSaldo(guildId, alvo.id),
+      getNivelRebirth(guildId, alvo.id),
+      getGuildEmojis(guildId),
+    ]);
+
     const nivelNome = NIVEL_NOME[nivel] ?? "Normal";
     const isMaxNivel = nivel >= MAX_NIVEL;
 
-    // Montar tabela de preços com desconto atual
-    const linhasPrecos = Object.values(PACKS)
-      .map((pack) => {
+    // Montar tabela de preços com desconto atual usando emojis configurados
+    const linhasPrecos = (Object.entries(PACKS) as [TipoPacote, typeof PACKS[TipoPacote]][])
+      .map(([tipo, pack]) => {
         const preco = calcularPreco(pack.precoBase, nivel);
         const descPct = Math.round((1 - preco / pack.precoBase) * 100);
         const descTxt = descPct > 0 ? ` (-${descPct}%)` : "";
         const podeComprar = saldo >= preco ? "✅" : "❌";
-        return `${podeComprar} ${pack.emoji} **${pack.nome}**: ${preco} moedas${descTxt}`;
+        const packEmoji = emojis[PACK_EMOJI_CHAVE[tipo]];
+        return `${podeComprar} ${packEmoji} **${pack.nome}**: ${preco} moedas${descTxt}`;
       })
       .join("\n");
 
@@ -50,12 +63,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       : `➡️ Próximo nível: **${proximoNivel}** via \`/rebirth\``;
 
     const embed = new EmbedBuilder()
-      .setTitle(`💰 Saldo de ${alvo.username}`)
+      .setTitle(`${emojis.moedas} Saldo de ${alvo.username}`)
       .setColor(0x7B2FBE)
       .setThumbnail(alvo.displayAvatarURL())
       .addFields(
         {
-          name: "💰 Moedas",
+          name: `${emojis.moedas} Moedas`,
           value: `**${saldo}** moedas\n*(+2 por mensagem com ≥5 caracteres)*`,
           inline: true,
         },
