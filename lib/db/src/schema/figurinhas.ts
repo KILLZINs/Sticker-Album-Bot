@@ -2,7 +2,6 @@ import { pgTable, text, serial, timestamp, integer, boolean, unique } from "driz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-// Catálogo global do servidor — admins criam figurinhas aqui
 export const catalogoFigurinhasTable = pgTable("catalogo_figurinhas", {
   id: serial("id").primaryKey(),
   guildId: text("guild_id").notNull(),
@@ -16,8 +15,6 @@ export const catalogoFigurinhasTable = pgTable("catalogo_figurinhas", {
   criadoEm: timestamp("criado_em").notNull().defaultNow(),
 });
 
-// Coleção de cada usuário — figurinhas desbloqueadas do catálogo
-// Sem unique constraint — figurinhas repetidas são permitidas!
 export const colecaoUsuarioTable = pgTable("colecao_usuario", {
   id: serial("id").primaryKey(),
   guildId: text("guild_id").notNull(),
@@ -29,7 +26,6 @@ export const colecaoUsuarioTable = pgTable("colecao_usuario", {
   desbloqueadoEm: timestamp("desbloqueado_em").notNull().defaultNow(),
 });
 
-// Moedas e nível de rebirth por usuário
 export const moedasUsuarioTable = pgTable(
   "moedas_usuario",
   {
@@ -43,7 +39,6 @@ export const moedasUsuarioTable = pgTable(
   (t) => [unique("moedas_unicas").on(t.guildId, t.userId)]
 );
 
-// Conquistas/badges desbloqueadas por usuário
 export const conquistasUsuarioTable = pgTable(
   "conquistas_usuario",
   {
@@ -57,7 +52,6 @@ export const conquistasUsuarioTable = pgTable(
   (t) => [unique("conquista_unica").on(t.guildId, t.userId, t.conquistaId)]
 );
 
-// Controle de pacotinhos diários (mantida para compatibilidade)
 export const pacotesDiariosTable = pgTable("pacotes_diarios", {
   id: serial("id").primaryKey(),
   guildId: text("guild_id").notNull(),
@@ -65,7 +59,6 @@ export const pacotesDiariosTable = pgTable("pacotes_diarios", {
   ultimaAbertura: timestamp("ultima_abertura").notNull().defaultNow(),
 });
 
-// Cooldown de doação de figurinhas entre usuários
 export const doacaoCooldownTable = pgTable(
   "doacao_cooldown",
   {
@@ -77,7 +70,6 @@ export const doacaoCooldownTable = pgTable(
   (t) => [unique("doacao_cooldown_unique").on(t.guildId, t.userId)]
 );
 
-// Tabelas legadas — mantidas para compatibilidade
 export const figurinhasTable = pgTable("figurinhas", {
   id: serial("id").primaryKey(),
   guildId: text("guild_id").notNull(),
@@ -116,7 +108,6 @@ export type Figurinha = typeof figurinhasTable.$inferSelect;
 export type InsertAlbum = z.infer<typeof insertAlbumSchema>;
 export type Album = typeof albumsTable.$inferSelect;
 
-// Configuração de emojis personalizados por servidor
 export const emojiConfigTable = pgTable(
   "emoji_config",
   {
@@ -127,10 +118,8 @@ export const emojiConfigTable = pgTable(
   },
   (t) => [unique("emoji_config_unique").on(t.guildId, t.chave)]
 );
-
 export type EmojiConfig = typeof emojiConfigTable.$inferSelect;
 
-// Configuração de moedas por servidor (nome, ganho por mensagem, preços dos pacotes)
 export const moedaConfigTable = pgTable(
   "moeda_config",
   {
@@ -141,5 +130,16 @@ export const moedaConfigTable = pgTable(
   },
   (t) => [unique("moeda_config_unique").on(t.guildId, t.chave)]
 );
-
 export type MoedaConfig = typeof moedaConfigTable.$inferSelect;
+
+export const figurinhaConfigTable = pgTable(
+  "figurinha_config",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    chave: text("chave").notNull(),
+    valor: text("valor").notNull(),
+  },
+  (t) => [unique("figurinha_config_unique").on(t.guildId, t.chave)]
+);
+export type FigurinhaConfig = typeof figurinhaConfigTable.$inferSelect;
