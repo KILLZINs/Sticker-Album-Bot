@@ -47,7 +47,7 @@ export async function getSaldo(guildId: string, userId: string): Promise<number>
 
 export async function getNivelRebirth(guildId: string, userId: string): Promise<number> {
   const row = await getRow(guildId, userId);
-  return row?.nivel ?? 0;
+  return row?.nivelRebirth ?? 0;
 }
 
 export async function addMoedas(
@@ -59,7 +59,6 @@ export async function addMoedas(
   const existing = await getRow(guildId, userId);
 
   if (existing) {
-    // Usuário já existe — atualiza o saldo
     await db
       .update(moedasUsuarioTable)
       .set({
@@ -68,7 +67,6 @@ export async function addMoedas(
       })
       .where(and(eq(moedasUsuarioTable.guildId, guildId), eq(moedasUsuarioTable.userId, userId)));
   } else {
-    // Usuário novo — insere com o saldo inicial
     await db
       .insert(moedasUsuarioTable)
       .values({ guildId, userId, username, saldo: amount, nivelRebirth: 0 });
