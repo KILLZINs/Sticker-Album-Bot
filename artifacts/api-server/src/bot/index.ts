@@ -98,10 +98,22 @@ export async function startBot() {
   });
 
   client.on("interactionCreate", async (interaction: Interaction) => {
-    // Botões do painel de emojis
+    // Botões do painel de emojis (individuais)
     if (interaction.isButton() && interaction.customId.startsWith("emoji_btn_")) {
       await configurarEmojis.handleEmojiButton(interaction).catch((err) => {
         logger.error({ err }, "Erro ao processar botão de emoji config");
+      });
+      return;
+    }
+
+    // Botões de confirmação/cancelamento de reset
+    if (
+      interaction.isButton() &&
+      (interaction.customId.startsWith("emoji_reset_confirm_") ||
+        interaction.customId.startsWith("emoji_reset_cancel_"))
+    ) {
+      await configurarEmojis.handleResetButton(interaction).catch((err) => {
+        logger.error({ err }, "Erro ao processar reset de emojis");
       });
       return;
     }

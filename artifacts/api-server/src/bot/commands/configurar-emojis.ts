@@ -117,7 +117,14 @@ function buildPanelComponents(emojis: GuildEmojis): ActionRowBuilder<ButtonBuild
     makeButton("emoji_btn_raridade_lendaria", "Lendária", emojis.raridade_lendaria),
   );
 
-  return [row1, row2];
+  const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId("emoji_btn_reset")
+      .setLabel("🔄 Redefinir tudo ao padrão")
+      .setStyle(ButtonStyle.Danger),
+  );
+
+  return [row1, row2, row3];
 }
 
 export async function execute(interaction: ChatInputCommandInteraction) {
@@ -136,7 +143,29 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 }
 
 export async function handleEmojiButton(interaction: ButtonInteraction): Promise<void> {
-  // customId: emoji_btn_{chave}
+  // Botão de reset — pede confirmação
+  if (interaction.customId === "emoji_btn_reset") {
+    const messageId = interaction.message.id;
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`emoji_reset_confirm_${messageId}`)
+        .setLabel("✅ Sim, redefinir tudo")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`emoji_reset_cancel_${messageId}`)
+        .setLabel("❌ Cancelar")
+        .setStyle(ButtonStyle.Secondary),
+    );
+
+    await interaction.reply({
+      content: "⚠️ **Tem certeza?** Isso vai **redefinir TODOS os emojis** deste servidor de volta ao padrão.",
+      components: [row],
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // Botão de emoji individual — customId: emoji_btn_{chave}
   const chave = interaction.customId.slice("emoji_btn_".length) as EmojiChave;
   const nome = NOMES_CHAVES[chave] ?? chave;
   const defaultEmoji = EMOJI_DEFAULTS[chave] ?? "❓";
@@ -159,6 +188,56 @@ export async function handleEmojiButton(interaction: ButtonInteraction): Promise
     );
 
   await interaction.showModal(modal);
+}
+
+export async function handleResetButton(interaction: ButtonInteraction): Promise<void> {
+  const guildId = interaction.guildId!;
+
+  // Confirmar reset
+  if (interaction.customId.startsWith("emoji_reset_confirm_")) {
+    const messageId = interaction.customId.slice("emoji_reset_confirm_".length);
+
+    try {
+      // Remove todas as configurações de emoji deste servidor
+      await db
+        .delete(emojiConfigTable)
+        .where(eq(emojiConfigTable.guildId, guildId));
+
+      invalidateGuildCache(guildId);
+      const emojis = await getGuildEmojis(guildId);
+
+      // Atualiza o painel original
+      if (interaction.channel && messageId) {
+        const msg = await interaction.channel.messages.fetch(messageId).catch(() => null);
+        if (msg) {
+          await msg.edit({
+            embeds: [buildPanelEmbed(emojis)],
+            components: buildPanelComponents(emojis),
+          }).catch(() => {});
+        }
+      }
+
+      await interaction.update({
+        content: "✅ Todos os emojis foram redefinidos ao padrão com sucesso!",
+        components: [],
+      });
+    } catch (err) {
+      logger.error({ err }, "Erro ao redefinir emojis");
+      await interaction.update({
+        content: "❌ Erro ao redefinir os emojis. Tente novamente.",
+        components: [],
+      });
+    }
+    return;
+  }
+
+  // Cancelar reset
+  if (interaction.customId.startsWith("emoji_reset_cancel_")) {
+    await interaction.update({
+      content: "❎ Redefinição cancelada.",
+      components: [],
+    });
+  }
 }
 
 export async function handleEmojiModal(interaction: ModalSubmitInteraction): Promise<void> {
