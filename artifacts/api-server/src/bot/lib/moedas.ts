@@ -23,17 +23,13 @@ export function calcularPreco(precoBase: number, nivel: number): number {
 }
 
 async function upsertRow(guildId: string, userId: string, username: string) {
-  const existing = await db
-    .select({ id: moedasUsuarioTable.id })
-    .from(moedasUsuarioTable)
-    .where(and(eq(moedasUsuarioTable.guildId, guildId), eq(moedasUsuarioTable.userId, userId)))
-    .limit(1);
-
-  if (existing.length === 0) {
-    await db
-      .insert(moedasUsuarioTable)
-      .values({ guildId, userId, username, saldo: 0, nivelRebirth: 0 });
-  }
+  await db
+    .insert(moedasUsuarioTable)
+    .values({ guildId, userId, username, saldo: 0, nivelRebirth: 0 })
+    .onConflictDoUpdate({
+      target: [moedasUsuarioTable.guildId, moedasUsuarioTable.userId],
+      set: { username },
+    });
 }
 
 export async function getSaldo(guildId: string, userId: string): Promise<number> {
@@ -60,22 +56,17 @@ export async function addMoedas(
   username: string,
   amount: number
 ): Promise<void> {
-  // Tenta atualizar a linha existente primeiro
-  const updated = await db
-    .update(moedasUsuarioTable)
-    .set({
-      saldo: sql`${moedasUsuarioTable.saldo} + ${amount}`,
-      username,
-    })
-    .where(and(eq(moedasUsuarioTable.guildId, guildId), eq(moedasUsuarioTable.userId, userId)))
-    .returning({ id: moedasUsuarioTable.id });
-
-  // Se não havia linha, insere uma nova
-  if (updated.length === 0) {
-    await db
-      .insert(moedasUsuarioTable)
-      .values({ guildId, userId, username, saldo: amount, nivelRebirth: 0 });
-  }
+  // Upsert atômico: insere o usuário se não existir, ou incrementa o saldo se já existir
+  await db
+    .insert(moedasUsuarioTable)
+    .values({ guildId, userId, username, saldo: amount, nivelRebirth: 0 })
+    .onConflictDoUpdate({
+      target: [moedasUsuarioTable.guildId, moedasUsuarioTable.userId],
+      set: {
+        saldo: sql`${moedasUsuarioTable.saldo} + ${amount}`,
+        username,
+      },
+    });
 }
 
 export async function deductMoedas(
@@ -101,17 +92,12 @@ export async function setNivelRebirth(
   username: string,
   nivel: number
 ): Promise<void> {
-  // Tenta atualizar a linha existente primeiro
-  const updated = await db
-    .update(moedasUsuarioTable)
-    .set({ nivelRebirth: nivel })
-    .where(and(eq(moedasUsuarioTable.guildId, guildId), eq(moedasUsuarioTable.userId, userId)))
-    .returning({ id: moedasUsuarioTable.id });
-
-  // Se não havia linha, insere uma nova
-  if (updated.length === 0) {
-    await db
-      .insert(moedasUsuarioTable)
-      .values({ guildId, userId, username, saldo: 0, nivelRebirth: nivel });
-  }
+  // Upsert atômico: insere o usuário se não existir, ou atualiza o nível se já existir
+  await db
+    .insert(moedasUsuarioTable)
+    .values({ guildId, userId, username, saldo: 0, nivelRebirth: nivel })
+    .onConflictDoUpdate({
+      target: [moedasUsuarioTable.guildId, moedasUsuarioTable.userId],
+      set: { nivelRebirth: nivel },
+    });
 }
