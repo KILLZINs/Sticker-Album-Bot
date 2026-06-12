@@ -35,6 +35,9 @@ const NOMES_CHAVES: Record<EmojiChave, string> = {
   raridade_rara: "Raridade Rara",
   raridade_epica: "Raridade Épica",
   raridade_lendaria: "Raridade Lendária",
+  nivel_normal: "Nível Normal",
+  nivel_prata: "Nível Prata",
+  nivel_ouro: "Nível Ouro",
 };
 
 export const data = new SlashCommandBuilder()
@@ -42,7 +45,6 @@ export const data = new SlashCommandBuilder()
   .setDescription("[ADMIN] Configura os emojis personalizados usados nos embeds do servidor")
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-// Parse emoji string into a Discord emoji resolvable (handles custom emojis)
 function resolveEmoji(emojiStr: string): APIMessageComponentEmoji | string {
   const match = emojiStr.match(/^<(a?):(\w+):(\d+)>$/);
   if (match) {
@@ -94,10 +96,18 @@ function buildPanelEmbed(emojis: GuildEmojis): EmbedBuilder {
           `${emojis.raridade_epica} Épica\n` +
           `${emojis.raridade_lendaria} Lendária`,
         inline: true,
-      }
+      },
+      {
+        name: "Níveis de Rebirth",
+        value:
+          `${emojis.nivel_normal} Normal\n` +
+          `${emojis.nivel_prata} Prata\n` +
+          `${emojis.nivel_ouro} Ouro`,
+        inline: true,
+      },
     )
     .setColor(0x470f78)
-    .setFooter({ text: "Emojis configurados aparecem em /abrir-pacote, /figurinhas, /catalogo e mais!" })
+    .setFooter({ text: "Emojis aparecem em /saldo, /atm, /rebirth, /abrir-pacote, /figurinhas, /ranking e mais!" })
     .setTimestamp();
 }
 
@@ -118,13 +128,19 @@ function buildPanelComponents(emojis: GuildEmojis): ActionRowBuilder<ButtonBuild
   );
 
   const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    makeButton("emoji_btn_nivel_normal", "Nv. Normal", emojis.nivel_normal),
+    makeButton("emoji_btn_nivel_prata", "Nv. Prata", emojis.nivel_prata),
+    makeButton("emoji_btn_nivel_ouro", "Nv. Ouro", emojis.nivel_ouro),
+  );
+
+  const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId("emoji_btn_reset")
       .setLabel("🔄 Redefinir tudo ao padrão")
       .setStyle(ButtonStyle.Danger),
   );
 
-  return [row1, row2, row3];
+  return [row1, row2, row3, row4];
 }
 
 export async function execute(interaction: ChatInputCommandInteraction) {
@@ -143,7 +159,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 }
 
 export async function handleEmojiButton(interaction: ButtonInteraction): Promise<void> {
-  // Botão de reset — pede confirmação
   if (interaction.customId === "emoji_btn_reset") {
     const messageId = interaction.message.id;
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -165,7 +180,6 @@ export async function handleEmojiButton(interaction: ButtonInteraction): Promise
     return;
   }
 
-  // Botão de emoji individual — customId: emoji_btn_{chave}
   const chave = interaction.customId.slice("emoji_btn_".length) as EmojiChave;
   const nome = NOMES_CHAVES[chave] ?? chave;
   const defaultEmoji = EMOJI_DEFAULTS[chave] ?? "❓";
@@ -193,20 +207,15 @@ export async function handleEmojiButton(interaction: ButtonInteraction): Promise
 export async function handleResetButton(interaction: ButtonInteraction): Promise<void> {
   const guildId = interaction.guildId!;
 
-  // Confirmar reset
   if (interaction.customId.startsWith("emoji_reset_confirm_")) {
     const messageId = interaction.customId.slice("emoji_reset_confirm_".length);
 
     try {
-      // Remove todas as configurações de emoji deste servidor
-      await db
-        .delete(emojiConfigTable)
-        .where(eq(emojiConfigTable.guildId, guildId));
+      await db.delete(emojiConfigTable).where(eq(emojiConfigTable.guildId, guildId));
 
       invalidateGuildCache(guildId);
       const emojis = await getGuildEmojis(guildId);
 
-      // Atualiza o painel original
       if (interaction.channel && messageId) {
         const msg = await interaction.channel.messages.fetch(messageId).catch(() => null);
         if (msg) {
@@ -231,17 +240,12 @@ export async function handleResetButton(interaction: ButtonInteraction): Promise
     return;
   }
 
-  // Cancelar reset
   if (interaction.customId.startsWith("emoji_reset_cancel_")) {
-    await interaction.update({
-      content: "❎ Redefinição cancelada.",
-      components: [],
-    });
+    await interaction.update({ content: "❎ Redefinição cancelada.", components: [] });
   }
 }
 
 export async function handleEmojiModal(interaction: ModalSubmitInteraction): Promise<void> {
-  // customId: emoji_modal_{chave}_{messageId}
   const withoutPrefix = interaction.customId.slice("emoji_modal_".length);
   const lastUnder = withoutPrefix.lastIndexOf("_");
   const chave = withoutPrefix.slice(0, lastUnder) as EmojiChave;
@@ -252,7 +256,6 @@ export async function handleEmojiModal(interaction: ModalSubmitInteraction): Pro
   const novoEmoji = interaction.fields.getTextInputValue("emoji_input").trim();
 
   try {
-    // Save using update+insert (no dependency on unique constraint)
     const updated = await db
       .update(emojiConfigTable)
       .set({ emoji: novoEmoji })
@@ -266,7 +269,6 @@ export async function handleEmojiModal(interaction: ModalSubmitInteraction): Pro
     invalidateGuildCache(guildId);
     const emojis = await getGuildEmojis(guildId);
 
-    // Try to update the original panel message
     if (interaction.channel && messageId) {
       const msg = await interaction.channel.messages.fetch(messageId).catch(() => null);
       if (msg) {
@@ -277,10 +279,7 @@ export async function handleEmojiModal(interaction: ModalSubmitInteraction): Pro
       }
     }
 
-    await interaction.reply({
-      content: `✅ Emoji de **${nome}** atualizado para ${novoEmoji}!`,
-      ephemeral: true,
-    });
+    await interaction.reply({ content: `✅ Emoji de **${nome}** atualizado para ${novoEmoji}!`, ephemeral: true });
   } catch (err) {
     logger.error({ err }, "Erro ao salvar emoji config");
     await interaction.reply({
