@@ -22,31 +22,31 @@ export function calcularPreco(precoBase: number, nivel: number): number {
   return Math.round(precoBase * desconto);
 }
 
-async function upsertRow(guildId: string, userId: string, username: string) {
-  await db
-    .insert(moedasUsuarioTable)
-    .values({ guildId, userId, username, saldo: 0, nivelRebirth: 0 })
-    .onConflictDoUpdate({
-      target: [moedasUsuarioTable.guildId, moedasUsuarioTable.userId],
-      set: { username },
-    });
-}
-
-export async function getSaldo(guildId: string, userId: string): Promise<number> {
+async function getRow(guildId: string, userId: string) {
   const [row] = await db
-    .select({ saldo: moedasUsuarioTable.saldo })
+    .select()
     .from(moedasUsuarioTable)
     .where(and(eq(moedasUsuarioTable.guildId, guildId), eq(moedasUsuarioTable.userId, userId)))
     .limit(1);
+  return row ?? null;
+}
+
+async function upsertRow(guildId: string, userId: string, username: string) {
+  const existing = await getRow(guildId, userId);
+  if (!existing) {
+    await db
+      .insert(moedasUsuarioTable)
+      .values({ guildId, userId, username, saldo: 0, nivelRebirth: 0 });
+  }
+}
+
+export async function getSaldo(guildId: string, userId: string): Promise<number> {
+  const row = await getRow(guildId, userId);
   return row?.saldo ?? 0;
 }
 
 export async function getNivelRebirth(guildId: string, userId: string): Promise<number> {
-  const [row] = await db
-    .select({ nivel: moedasUsuarioTable.nivelRebirth })
-    .from(moedasUsuarioTable)
-    .where(and(eq(moedasUsuarioTable.guildId, guildId), eq(moedasUsuarioTable.userId, userId)))
-    .limit(1);
+  const row = await getRow(guildId, userId);
   return row?.nivel ?? 0;
 }
 
@@ -56,17 +56,23 @@ export async function addMoedas(
   username: string,
   amount: number
 ): Promise<void> {
-  // Upsert atômico: insere o usuário se não existir, ou incrementa o saldo se já existir
-  await db
-    .insert(moedasUsuarioTable)
-    .values({ guildId, userId, username, saldo: amount, nivelRebirth: 0 })
-    .onConflictDoUpdate({
-      target: [moedasUsuarioTable.guildId, moedasUsuarioTable.userId],
-      set: {
+  const existing = await getRow(guildId, userId);
+
+  if (existing) {
+    // Usuário já existe — atualiza o saldo
+    await db
+      .update(moedasUsuarioTable)
+      .set({
         saldo: sql`${moedasUsuarioTable.saldo} + ${amount}`,
         username,
-      },
-    });
+      })
+      .where(and(eq(moedasUsuarioTable.guildId, guildId), eq(moedasUsuarioTable.userId, userId)));
+  } else {
+    // Usuário novo — insere com o saldo inicial
+    await db
+      .insert(moedasUsuarioTable)
+      .values({ guildId, userId, username, saldo: amount, nivelRebirth: 0 });
+  }
 }
 
 export async function deductMoedas(
@@ -92,12 +98,16 @@ export async function setNivelRebirth(
   username: string,
   nivel: number
 ): Promise<void> {
-  // Upsert atômico: insere o usuário se não existir, ou atualiza o nível se já existir
-  await db
-    .insert(moedasUsuarioTable)
-    .values({ guildId, userId, username, saldo: 0, nivelRebirth: nivel })
-    .onConflictDoUpdate({
-      target: [moedasUsuarioTable.guildId, moedasUsuarioTable.userId],
-      set: { nivelRebirth: nivel },
-    });
+  const existing = await getRow(guildId, userId);
+
+  if (existing) {
+    await db
+      .update(moedasUsuarioTable)
+      .set({ nivelRebirth: nivel })
+      .where(and(eq(moedasUsuarioTable.guildId, guildId), eq(moedasUsuarioTable.userId, userId)));
+  } else {
+    await db
+      .insert(moedasUsuarioTable)
+      .values({ guildId, userId, username, saldo: 0, nivelRebirth: nivel });
+  }
 }
