@@ -8,7 +8,7 @@ import { colecaoUsuarioTable, moedasUsuarioTable } from "@workspace/db";
 import { eq, and, countDistinct } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { NIVEL_NOME, PACKS, calcularPreco, type TipoPacote } from "../lib/moedas.js";
-import { getGuildEmojis, type GuildEmojis } from "../lib/emoji-config.js";
+import { getGuildEmojis, getNivelDisplay, type GuildEmojis } from "../lib/emoji-config.js";
 import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 
 export const data = new SlashCommandBuilder()
@@ -56,7 +56,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const saldo = rowResult[0]?.saldo ?? 0;
     const nivel = rowResult[0]?.nivelRebirth ?? 0;
     const totalUnicas = colecaoResult[0]?.totalUnicas ?? 0;
-    const nivelNome = NIVEL_NOME[nivel] ?? "Normal";
+    const nivelNome = getNivelDisplay(emojis, nivel);
     const nomeMoeda = moedaCfg.nomeMoeda;
 
     const precosBase: Record<TipoPacote, number> = {
