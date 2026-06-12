@@ -5,7 +5,7 @@ import {
   PermissionFlagsBits,
 } from "discord.js";
 import { logger } from "../lib/logger.js";
-import { addMoedas } from "../lib/moedas.js";
+import { addMoedas, getSaldo } from "../lib/moedas.js";
 
 export const data = new SlashCommandBuilder()
   .setName("dar-moedas")
@@ -39,7 +39,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   try {
-    const novoSaldo = await addMoedas(guildId, alvo.id, alvo.username, quantidade);
+    await addMoedas(guildId, alvo.id, alvo.username, quantidade);
+    const novoSaldo = await getSaldo(guildId, alvo.id);
 
     const embed = new EmbedBuilder()
       .setTitle("💰 Moedas enviadas!")
@@ -56,7 +57,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     await interaction.editReply({ embeds: [embed] });
 
-    // Avisar o usuário no canal (não ephemeral)
     await interaction.followUp({
       content: `🎁 <@${alvo.id}> recebeu **${quantidade} moedas** de <@${interaction.user.id}>! 💰`,
     });
