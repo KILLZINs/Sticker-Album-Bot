@@ -13,37 +13,69 @@ import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 
+const RARIDADE_ORDEM: Record<string, number> = {
+  "lendária": 1,
+  "épica":    2,
+  "rara":     3,
+  "incomum":  4,
+  "comum":    5,
+};
+
+const PAGE_SIZE = 10;
+
 export const data = new SlashCommandBuilder()
   .setName("catalogo")
   .setDescription("Mostra todas as figurinhas disponíveis no servidor")
+  .addStringOption((opt) =>
+    opt
+      .setName("ordenar")
+      .setDescription("Ordem de exibição (padrão: número)")
+      .setRequired(false)
+      .addChoices(
+        { name: "🔢 Número (padrão)", value: "numero" },
+        { name: "⭐ Raridade (lendária primeiro)", value: "raridade" },
+        { name: "🔤 Alfabeto (A → Z)", value: "alfabeto" },
+      )
+  )
   .addUserOption((opt) =>
-    opt.setName("usuario").setDescription("Ver coleção de outro usuário").setRequired(false)
+    opt.setName("usuario").setDescription("Ver progresso de outro usuário").setRequired(false)
   );
-
-const PAGE_SIZE = 10;
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
 
   const alvoUser = interaction.options.getUser("usuario") ?? interaction.user;
+  const ordenar = (interaction.options.getString("ordenar") ?? "numero") as "numero" | "raridade" | "alfabeto";
   const guildId = interaction.guildId!;
 
   try {
     const emojis = await getGuildEmojis(guildId);
 
-    const catalogo = await db
+    const catalogoBruto = await db
       .select()
       .from(catalogoFigurinhasTable)
-      .where(eq(catalogoFigurinhasTable.guildId, guildId))
-      .orderBy(catalogoFigurinhasTable.numero);
+      .where(eq(catalogoFigurinhasTable.guildId, guildId));
 
-    if (catalogo.length === 0) {
+    if (catalogoBruto.length === 0) {
       await interaction.editReply(
         "📭 Nenhuma figurinha no catálogo ainda!\n\n" +
           "Peça para um administrador usar **/criar-figurinha** para adicionar figurinhas."
       );
       return;
     }
+
+    // Ordenar conforme a opção escolhida
+    const catalogo = [...catalogoBruto].sort((a, b) => {
+      if (ordenar === "raridade") {
+        const diff = (RARIDADE_ORDEM[a.raridade] ?? 9) - (RARIDADE_ORDEM[b.raridade] ?? 9);
+        return diff !== 0 ? diff : a.numero - b.numero;
+      }
+      if (ordenar === "alfabeto") {
+        return a.titulo.localeCompare(b.titulo, "pt-BR", { sensitivity: "base" });
+      }
+      // numero (padrão)
+      return a.numero - b.numero;
+    });
 
     const colecao = await db
       .select({ catalogoId: colecaoUsuarioTable.catalogoId })
@@ -57,9 +89,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const desbloqueadosIds = new Set(colecao.map((c) => c.catalogoId));
     const totalDesbloqueadas = desbloqueadosIds.size;
-
     const totalPages = Math.ceil(catalogo.length / PAGE_SIZE);
     let page = 0;
+
+    const ordemLabel: Record<string, string> = {
+      numero:   "🔢 por número",
+      raridade: "⭐ por raridade",
+      alfabeto: "🔤 alfabética",
+    };
 
     const buildEmbed = (p: number) => {
       const inicio = p * PAGE_SIZE;
@@ -85,7 +122,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         .setColor(0x470f78)
         .setThumbnail(alvoUser.displayAvatarURL())
         .setFooter({
-          text: `Página ${p + 1}/${totalPages} • ✅ desbloqueada • 🔒 bloqueada • Use /desbloquear-figurinha para coletar!`,
+          text: `Página ${p + 1}/${totalPages} • Ordem ${ordemLabel[ordenar]} • ✅ desbloqueada • 🔒 bloqueada`,
         });
     };
 
