@@ -69,7 +69,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       content: `${emojis.moedas} <@${alvo.id}> recebeu **${quantidade} ${nomeMoeda}** de <@${interaction.user.id}>!`,
     });
   } catch (err) {
+    const mensagemErro = err instanceof Error ? err.message : String(err);
     logger.error({ err }, "Erro ao dar moedas");
-    await interaction.editReply("❌ Erro ao dar moedas. Tente novamente.");
+    await interaction.editReply(
+      `❌ Erro ao dar moedas.\n\`\`\`\n${mensagemErro}\n\`\`\``
+    );
   }
 }
