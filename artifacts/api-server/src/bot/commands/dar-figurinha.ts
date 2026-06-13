@@ -47,34 +47,23 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const cooldownHoras = figCfg.cooldownDoacaoHoras;
     const nivelMaximo = figCfg.nivelMaximoDoacao;
 
-    // Verificar nível (nivelMaximo -1 = sem restrição)
     if (nivelMaximo >= 0) {
       const nivelRemetente = await getNivelRebirth(guildId, remetenteId);
       if (nivelRemetente > nivelMaximo) {
-        const nivelNomeAtual = getNivelDisplay(emojis, nivelRemetente);
-        const nivelNomeMax = getNivelDisplay(emojis, nivelMaximo);
         await interaction.editReply(
-          `❌ **Doações bloqueadas para o seu nível.**\n\n` +
-          `Seu nível atual é **${nivelNomeAtual}**.\n` +
-          `Apenas jogadores até **${nivelNomeMax}** podem realizar doações neste servidor.`
+          `❌ **Doações bloqueadas para o seu nível.**\n\nSeu nível: **${getNivelDisplay(emojis, nivelRemetente)}**\nMáximo permitido: **${getNivelDisplay(emojis, nivelMaximo)}**`
         );
         return;
       }
-
       const nivelDestino = await getNivelRebirth(guildId, destino.id);
       if (nivelDestino > nivelMaximo) {
-        const nivelNomeDele = getNivelDisplay(emojis, nivelDestino);
-        const nivelNomeMax = getNivelDisplay(emojis, nivelMaximo);
         await interaction.editReply(
-          `❌ **<@${destino.id}> não pode receber doações.**\n\n` +
-          `O nível de <@${destino.id}> é **${nivelNomeDele}**.\n` +
-          `Apenas jogadores até **${nivelNomeMax}** podem receber doações neste servidor.`
+          `❌ **<@${destino.id}> não pode receber doações.**\nNível dele: **${getNivelDisplay(emojis, nivelDestino)}** · Máximo: **${getNivelDisplay(emojis, nivelMaximo)}**`
         );
         return;
       }
     }
 
-    // Verificar cooldown
     const [cooldownRow] = await db
       .select({ ultimaDoacao: doacaoCooldownTable.ultimaDoacao })
       .from(doacaoCooldownTable)
@@ -82,53 +71,43 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .limit(1);
 
     if (cooldownRow) {
-      const agora = Date.now();
-      const ultima = cooldownRow.ultimaDoacao.getTime();
-      const horasPassadas = (agora - ultima) / (1000 * 60 * 60);
+      const horasPassadas = (Date.now() - cooldownRow.ultimaDoacao.getTime()) / 3_600_000;
       if (horasPassadas < cooldownHoras) {
         const restante = cooldownHoras - horasPassadas;
         const horas = Math.floor(restante);
         const minutos = Math.floor((restante - horas) * 60);
         const cooldownTxt = cooldownHoras % 24 === 0 ? `${cooldownHoras / 24} dias` : `${cooldownHoras}h`;
-        await interaction.editReply(
-          `⏳ **Cooldown de doação ativo!**\n\n` +
-          `Você poderá doar novamente em **${horas}h ${minutos}min**.\n` +
-          `*(Limite: 1 doação a cada ${cooldownTxt})*`
-        );
+        await interaction.editReply(`⏳ **Cooldown de doação ativo!**\n\nPode doar novamente em **${horas}h ${minutos}min**.\n*(Limite: 1 doação a cada ${cooldownTxt})*`);
         return;
       }
     }
 
     const [catalogoEntry] = await db.select().from(catalogoFigurinhasTable)
-      .where(and(eq(catalogoFigurinhasTable.guildId, guildId), eq(catalogoFigurinhasTable.numero, numero)))
-      .limit(1);
+      .where(and(eq(catalogoFigurinhasTable.guildId, guildId), eq(catalogoFigurinhasTable.numero, numero))).limit(1);
 
     if (!catalogoEntry) { await interaction.editReply(`❌ Não existe figurinha com o número **#${numero}** no catálogo!`); return; }
 
-    const copiasRemetente = await db.select({ total: count() }).from(colecaoUsuarioTable)
+    const [{ total: totalCopias }] = await db.select({ total: count() }).from(colecaoUsuarioTable)
       .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, remetenteId), eq(colecaoUsuarioTable.catalogoId, catalogoEntry.id)));
 
-    const totalCopias = copiasRemetente[0]?.total ?? 0;
     if (totalCopias < 2) {
-      if (totalCopias === 0) {
-        await interaction.editReply(`❌ Você não tem a figurinha **#${numero} ${catalogoEntry.titulo}** na sua coleção!`);
-      } else {
-        await interaction.editReply(`❌ **Você só tem 1 cópia** da figurinha **#${numero} ${catalogoEntry.titulo}**.\n\nSó é possível doar figurinhas **repetidas** (quando você tem 2 ou mais cópias).\nUse **/repetidas** para ver quais você pode doar.`);
-      }
+      await interaction.editReply(
+        totalCopias === 0
+          ? `❌ Você não tem a figurinha **#${numero} ${catalogoEntry.titulo}** na sua coleção!`
+          : `❌ Você só tem **1 cópia** de **#${numero} ${catalogoEntry.titulo}**.\nSó é possível doar figurinhas repetidas (2+ cópias). Use **/repetidas** para ver as suas.`
+      );
       return;
     }
 
-    const [minhaColecao] = await db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable)
-      .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, remetenteId), eq(colecaoUsuarioTable.catalogoId, catalogoEntry.id)))
-      .limit(1);
+    const [primeiraCopia] = await db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable)
+      .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, remetenteId), eq(colecaoUsuarioTable.catalogoId, catalogoEntry.id))).limit(1);
 
-    await db.delete(colecaoUsuarioTable).where(eq(colecaoUsuarioTable.id, minhaColecao!.id));
+    await db.delete(colecaoUsuarioTable).where(eq(colecaoUsuarioTable.id, primeiraCopia!.id));
     await db.insert(colecaoUsuarioTable).values({ guildId, userId: destino.id, username: destino.username, catalogoId: catalogoEntry.id });
 
+    // Atualizar cooldown
     const [cooldownExistente] = await db.select({ id: doacaoCooldownTable.id }).from(doacaoCooldownTable)
-      .where(and(eq(doacaoCooldownTable.guildId, guildId), eq(doacaoCooldownTable.userId, remetenteId)))
-      .limit(1);
-
+      .where(and(eq(doacaoCooldownTable.guildId, guildId), eq(doacaoCooldownTable.userId, remetenteId))).limit(1);
     if (cooldownExistente) {
       await db.update(doacaoCooldownTable).set({ ultimaDoacao: sql`now()` })
         .where(and(eq(doacaoCooldownTable.guildId, guildId), eq(doacaoCooldownTable.userId, remetenteId)));
@@ -136,8 +115,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       await db.insert(doacaoCooldownTable).values({ guildId, userId: remetenteId });
     }
 
+    // Verificar e anunciar conquistas do destinatário
     const novasConquistas = await verificarConquistas(guildId, destino.id, destino.username, {});
-    if (novasConquistas.length > 0) await anunciarConquistas(interaction.channelId!, destino.id, novasConquistas, interaction.client);
+    if (novasConquistas.length > 0) {
+      await anunciarConquistas(interaction.channelId!, destino.id, novasConquistas, interaction.client, guildId);
+    }
 
     const emoji = getRaridadeEmoji(emojis, catalogoEntry.raridade);
     const copiasRestantes = totalCopias - 1;
@@ -158,8 +140,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
-    const mensagemErro = err instanceof Error ? err.message : String(err);
     logger.error({ err }, "Erro ao dar figurinha");
-    await interaction.editReply(`❌ Erro ao transferir a figurinha.\n\`\`\`\n${mensagemErro}\n\`\`\``);
+    await interaction.editReply(`❌ Erro ao transferir a figurinha.\n\`\`\`\n${err instanceof Error ? err.message : String(err)}\n\`\`\``);
   }
 }
