@@ -42,64 +42,30 @@ interface Command {
 }
 
 const allCommands: Command[] = [
-  criarFigurinha,
-  desbloquear,
-  abrirPacote,
-  catalogo,
-  verAlbum,
-  figurinhas,
-  ranking,
-  trocar,
-  conquistas,
-  rebirth,
-  removerFigurinha,
-  apagarFigurinha,
-  help,
-  saldo,
-  darMoedas,
-  atm,
-  forceReset,
-  repetidas,
-  darFigurinha,
-  configurarEmojis,
-  configurarMoedas,
-  configurarFigurinhas,
-  modificarFigurinha,
-  biografia,
-  comparar,
+  criarFigurinha, desbloquear, abrirPacote, catalogo, verAlbum, figurinhas,
+  ranking, trocar, conquistas, rebirth, removerFigurinha, apagarFigurinha,
+  help, saldo, darMoedas, atm, forceReset, repetidas, darFigurinha,
+  configurarEmojis, configurarMoedas, configurarFigurinhas, modificarFigurinha,
+  biografia, comparar,
 ];
 
 const commandMap = new Collection<string, Command>();
-for (const cmd of allCommands) {
-  commandMap.set(cmd.data.name, cmd);
-}
+for (const cmd of allCommands) commandMap.set(cmd.data.name, cmd);
 
 export async function startBot() {
   const token = process.env.DISCORD_BOT_TOKEN;
-
-  if (!token) {
-    logger.error("DISCORD_BOT_TOKEN não configurado — bot não será iniciado");
-    return;
-  }
+  if (!token) { logger.error("DISCORD_BOT_TOKEN não configurado — bot não será iniciado"); return; }
 
   await deployCommands();
 
   const client = new Client({
-    intents: [
-      GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMessages,
-      GatewayIntentBits.MessageContent,
-    ],
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
   });
 
-  client.once("ready", (c) => {
-    logger.info({ tag: c.user.tag }, "🤖 Bot do Álbum de Figurinhas online!");
-  });
+  client.once("ready", (c) => { logger.info({ tag: c.user.tag }, "🤖 Bot do Álbum de Figurinhas online!"); });
 
-  // Moedas por mensagem — comprimento mínimo configurável por servidor
   client.on("messageCreate", async (message) => {
-    if (message.author.bot) return;
-    if (!message.guildId) return;
+    if (message.author.bot || !message.guildId) return;
     try {
       const moedaCfg = await getGuildMoedaConfig(message.guildId);
       if (message.content.length < moedaCfg.comprimentoMinMensagem) return;
@@ -110,8 +76,14 @@ export async function startBot() {
   });
 
   client.on("interactionCreate", async (interaction: Interaction) => {
-    // --- Emojis ---
-    if (interaction.isButton() && interaction.customId.startsWith("emoji_btn_")) {
+    // ── Emojis: Select Menus ──
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith("emoji_sel_")) {
+      await configurarEmojis.handleEmojiSelect(interaction).catch((err) => logger.error({ err }, "Erro emoji select"));
+      return;
+    }
+
+    // ── Emojis: Buttons ──
+    if (interaction.isButton() && interaction.customId === "emoji_btn_reset") {
       await configurarEmojis.handleEmojiButton(interaction).catch((err) => logger.error({ err }, "Erro emoji btn"));
       return;
     }
@@ -119,12 +91,14 @@ export async function startBot() {
       await configurarEmojis.handleResetButton(interaction).catch((err) => logger.error({ err }, "Erro emoji reset"));
       return;
     }
+
+    // ── Emojis: Modal ──
     if (interaction.isModalSubmit() && interaction.customId.startsWith("emoji_modal_")) {
       await configurarEmojis.handleEmojiModal(interaction).catch((err) => logger.error({ err }, "Erro emoji modal"));
       return;
     }
 
-    // --- Moedas ---
+    // ── Moedas: Buttons ──
     if (interaction.isButton() && interaction.customId.startsWith("moeda_btn_")) {
       await configurarMoedas.handleMoedaButton(interaction).catch((err) => logger.error({ err }, "Erro moeda btn"));
       return;
@@ -133,12 +107,14 @@ export async function startBot() {
       await configurarMoedas.handleMoedaResetButton(interaction).catch((err) => logger.error({ err }, "Erro moeda reset"));
       return;
     }
+
+    // ── Moedas: Modal ──
     if (interaction.isModalSubmit() && interaction.customId.startsWith("moeda_modal_")) {
       await configurarMoedas.handleMoedaModal(interaction).catch((err) => logger.error({ err }, "Erro moeda modal"));
       return;
     }
 
-    // --- Figurinhas config ---
+    // ── Figurinhas config: Buttons ──
     if (interaction.isButton() && interaction.customId.startsWith("fig_btn_")) {
       await configurarFigurinhas.handleFigurinhaButton(interaction).catch((err) => logger.error({ err }, "Erro fig btn"));
       return;
@@ -147,6 +123,8 @@ export async function startBot() {
       await configurarFigurinhas.handleFigurinhaResetButton(interaction).catch((err) => logger.error({ err }, "Erro fig reset"));
       return;
     }
+
+    // ── Figurinhas config: Modal ──
     if (interaction.isModalSubmit() && interaction.customId.startsWith("fig_modal_")) {
       await configurarFigurinhas.handleFigurinhaModal(interaction).catch((err) => logger.error({ err }, "Erro fig modal"));
       return;
