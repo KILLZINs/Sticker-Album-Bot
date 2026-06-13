@@ -5,13 +5,14 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  StringSelectMenuBuilder,
+  StringSelectMenuInteraction,
   PermissionFlagsBits,
   ButtonInteraction,
   ModalSubmitInteraction,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  APIMessageComponentEmoji,
 } from "discord.js";
 import { db } from "@workspace/db";
 import { emojiConfigTable } from "@workspace/db";
@@ -24,6 +25,11 @@ import {
   type GuildEmojis,
   type EmojiChave,
 } from "../lib/emoji-config.js";
+
+export const data = new SlashCommandBuilder()
+  .setName("configurar-emojis")
+  .setDescription("[ADMIN] Configura todos os emojis usados pelo bot neste servidor")
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
 const NOMES_CHAVES: Record<EmojiChave, string> = {
   moedas: "Moedas",
@@ -38,119 +44,123 @@ const NOMES_CHAVES: Record<EmojiChave, string> = {
   nivel_normal: "Nível Normal",
   nivel_prata: "Nível Prata",
   nivel_ouro: "Nível Ouro",
+  ranking_primeiro: "Ranking 1º lugar",
+  ranking_segundo: "Ranking 2º lugar",
+  ranking_terceiro: "Ranking 3º lugar",
+  conquista_primeira_figurinha: "Conquista: Primeira Figurinha",
+  conquista_dez_figurinhas: "Conquista: Colecionador Iniciante",
+  conquista_vinte_cinco_figurinhas: "Conquista: Colecionador Dedicado",
+  conquista_cinquenta_figurinhas: "Conquista: Colecionador Lendário",
+  conquista_album_completo: "Conquista: Álbum Completo",
+  conquista_primeiro_pacote: "Conquista: Primeiro Pacote",
+  conquista_sete_pacotes: "Conquista: Rotina Diária",
+  conquista_trinta_pacotes: "Conquista: Maratonista",
+  conquista_figurinha_lendaria: "Conquista: Sortudo",
+  conquista_rebirth_prata: "Conquista: Renascido Prata",
+  conquista_rebirth_ouro: "Conquista: Renascido Ouro",
+  conquista_primeira_troca: "Conquista: Negociante",
+  conquista_cinco_trocas: "Conquista: Mercador",
 };
-
-export const data = new SlashCommandBuilder()
-  .setName("configurar-emojis")
-  .setDescription("[ADMIN] Configura os emojis personalizados usados nos embeds do servidor")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
-
-function resolveEmoji(emojiStr: string): APIMessageComponentEmoji | string {
-  const match = emojiStr.match(/^<(a?):(\w+):(\d+)>$/);
-  if (match) {
-    return { animated: match[1] === "a", name: match[2]!, id: match[3]! };
-  }
-  return emojiStr;
-}
-
-function makeButton(customId: string, label: string, emojiStr: string): ButtonBuilder {
-  const btn = new ButtonBuilder()
-    .setCustomId(customId)
-    .setLabel(label)
-    .setStyle(ButtonStyle.Secondary);
-  try {
-    btn.setEmoji(resolveEmoji(emojiStr));
-  } catch {
-    // fallback: ignore emoji if invalid
-  }
-  return btn;
-}
 
 function buildPanelEmbed(emojis: GuildEmojis): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle("⚙️ Configuração de Emojis")
-    .setDescription(
-      "Clique em um botão abaixo para alterar o emoji correspondente.\n" +
-      "Aceita emojis padrão `💎` ou emojis customizados do servidor `<:nome:ID>`."
-    )
+    .setDescription("Selecione um emoji nos menus abaixo para alterar.\nAceita emojis padrão `💎` ou customizados `<:nome:ID>`.")
     .addFields(
       {
-        name: "Economia",
-        value: `${emojis.moedas} Moedas`,
-        inline: true,
+        name: "💰 Economia & Pacotes",
+        value:
+          `${emojis.moedas} Moedas · ${emojis.pacote_standard} Standard · ${emojis.pacote_deluxe} Deluxe · ${emojis.pacote_ultimate} Ultimate`,
+        inline: false,
       },
       {
-        name: "Pacotes",
+        name: "✨ Raridades",
         value:
-          `${emojis.pacote_standard} Standard\n` +
-          `${emojis.pacote_deluxe} Deluxe\n` +
-          `${emojis.pacote_ultimate} Ultimate`,
-        inline: true,
+          `${emojis.raridade_comum} Comum · ${emojis.raridade_incomum} Incomum · ${emojis.raridade_rara} Rara · ${emojis.raridade_epica} Épica · ${emojis.raridade_lendaria} Lendária`,
+        inline: false,
       },
       {
-        name: "Raridades",
+        name: "🏆 Níveis & Ranking",
         value:
-          `${emojis.raridade_comum} Comum\n` +
-          `${emojis.raridade_incomum} Incomum\n` +
-          `${emojis.raridade_rara} Rara\n` +
-          `${emojis.raridade_epica} Épica\n` +
-          `${emojis.raridade_lendaria} Lendária`,
-        inline: true,
+          `${emojis.nivel_normal} Normal · ${emojis.nivel_prata} Prata · ${emojis.nivel_ouro} Ouro\n` +
+          `${emojis.ranking_primeiro} 1º · ${emojis.ranking_segundo} 2º · ${emojis.ranking_terceiro} 3º`,
+        inline: false,
       },
       {
-        name: "Níveis de Rebirth",
+        name: "🏅 Conquistas",
         value:
-          `${emojis.nivel_normal} Normal\n` +
-          `${emojis.nivel_prata} Prata\n` +
-          `${emojis.nivel_ouro} Ouro`,
-        inline: true,
+          `${emojis.conquista_primeira_figurinha} Primeira Figurinha · ${emojis.conquista_dez_figurinhas} Col. Iniciante · ${emojis.conquista_vinte_cinco_figurinhas} Col. Dedicado · ${emojis.conquista_cinquenta_figurinhas} Col. Lendário · ${emojis.conquista_album_completo} Álbum Completo\n` +
+          `${emojis.conquista_primeiro_pacote} 1º Pacote · ${emojis.conquista_sete_pacotes} Rotina Diária · ${emojis.conquista_trinta_pacotes} Maratonista · ${emojis.conquista_figurinha_lendaria} Sortudo\n` +
+          `${emojis.conquista_rebirth_prata} Renascido Prata · ${emojis.conquista_rebirth_ouro} Renascido Ouro · ${emojis.conquista_primeira_troca} Negociante · ${emojis.conquista_cinco_trocas} Mercador`,
+        inline: false,
       },
     )
     .setColor(0x470f78)
-    .setFooter({ text: "Emojis aparecem em /saldo, /atm, /rebirth, /abrir-pacote, /figurinhas, /ranking e mais!" })
+    .setFooter({ text: "28 emojis configuráveis • Mudanças entram em vigor imediatamente" })
     .setTimestamp();
 }
 
-function buildPanelComponents(emojis: GuildEmojis): ActionRowBuilder<ButtonBuilder>[] {
-  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    makeButton("emoji_btn_moedas", "Moedas", emojis.moedas),
-    makeButton("emoji_btn_pacote_standard", "Standard", emojis.pacote_standard),
-    makeButton("emoji_btn_pacote_deluxe", "Deluxe", emojis.pacote_deluxe),
-    makeButton("emoji_btn_pacote_ultimate", "Ultimate", emojis.pacote_ultimate),
-  );
+const MENU_GERAL_KEYS: EmojiChave[] = [
+  "moedas",
+  "pacote_standard", "pacote_deluxe", "pacote_ultimate",
+  "raridade_comum", "raridade_incomum", "raridade_rara", "raridade_epica", "raridade_lendaria",
+  "nivel_normal", "nivel_prata", "nivel_ouro",
+  "ranking_primeiro", "ranking_segundo", "ranking_terceiro",
+];
 
-  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    makeButton("emoji_btn_raridade_comum", "Comum", emojis.raridade_comum),
-    makeButton("emoji_btn_raridade_incomum", "Incomum", emojis.raridade_incomum),
-    makeButton("emoji_btn_raridade_rara", "Rara", emojis.raridade_rara),
-    makeButton("emoji_btn_raridade_epica", "Épica", emojis.raridade_epica),
-    makeButton("emoji_btn_raridade_lendaria", "Lendária", emojis.raridade_lendaria),
-  );
+const MENU_CONQUISTAS_KEYS: EmojiChave[] = [
+  "conquista_primeira_figurinha", "conquista_dez_figurinhas", "conquista_vinte_cinco_figurinhas",
+  "conquista_cinquenta_figurinhas", "conquista_album_completo", "conquista_primeiro_pacote",
+  "conquista_sete_pacotes", "conquista_trinta_pacotes", "conquista_figurinha_lendaria",
+  "conquista_rebirth_prata", "conquista_rebirth_ouro", "conquista_primeira_troca", "conquista_cinco_trocas",
+];
 
-  const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    makeButton("emoji_btn_nivel_normal", "Nv. Normal", emojis.nivel_normal),
-    makeButton("emoji_btn_nivel_prata", "Nv. Prata", emojis.nivel_prata),
-    makeButton("emoji_btn_nivel_ouro", "Nv. Ouro", emojis.nivel_ouro),
-  );
+function buildComponents(emojis: GuildEmojis, msgId: string): ActionRowBuilder<any>[] {
+  const menuGeral = new StringSelectMenuBuilder()
+    .setCustomId(`emoji_sel_geral_${msgId}`)
+    .setPlaceholder("🎨 Selecione um emoji para configurar — Geral, Raridades, Ranking...")
+    .addOptions(MENU_GERAL_KEYS.map((chave) => ({
+      label: NOMES_CHAVES[chave],
+      value: chave,
+      description: `Atual: ${emojis[chave]}`,
+      emoji: { name: emojis[chave].replace(/<a?:(\w+):\d+>/, "$1") },
+    })));
 
-  const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  const menuConquistas = new StringSelectMenuBuilder()
+    .setCustomId(`emoji_sel_conquistas_${msgId}`)
+    .setPlaceholder("🏅 Selecione um emoji para configurar — Conquistas...")
+    .addOptions(MENU_CONQUISTAS_KEYS.map((chave) => ({
+      label: NOMES_CHAVES[chave],
+      value: chave,
+      description: `Atual: ${emojis[chave]}`,
+    })));
+
+  const resetRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId("emoji_btn_reset")
       .setLabel("🔄 Redefinir tudo ao padrão")
       .setStyle(ButtonStyle.Danger),
   );
 
-  return [row1, row2, row3, row4];
+  return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menuGeral),
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menuConquistas),
+    resetRow,
+  ];
 }
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply({ ephemeral: true });
-
   try {
     const emojis = await getGuildEmojis(interaction.guildId!);
+    const msg = await interaction.editReply({
+      embeds: [buildPanelEmbed(emojis)],
+      components: buildComponents(emojis, "initial"),
+    });
+    // Rebuild with actual message ID
     await interaction.editReply({
       embeds: [buildPanelEmbed(emojis)],
-      components: buildPanelComponents(emojis),
+      components: buildComponents(emojis, msg.id),
     });
   } catch (err) {
     logger.error({ err }, "Erro ao abrir painel de emojis");
@@ -158,35 +168,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 }
 
-export async function handleEmojiButton(interaction: ButtonInteraction): Promise<void> {
-  if (interaction.customId === "emoji_btn_reset") {
-    const messageId = interaction.message.id;
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`emoji_reset_confirm_${messageId}`)
-        .setLabel("✅ Sim, redefinir tudo")
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId(`emoji_reset_cancel_${messageId}`)
-        .setLabel("❌ Cancelar")
-        .setStyle(ButtonStyle.Secondary),
-    );
-
-    await interaction.reply({
-      content: "⚠️ **Tem certeza?** Isso vai **redefinir TODOS os emojis** deste servidor de volta ao padrão.",
-      components: [row],
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const chave = interaction.customId.slice("emoji_btn_".length) as EmojiChave;
+export async function handleEmojiSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  // customId: emoji_sel_{category}_{msgId}
+  const parts = interaction.customId.split("_");
+  const msgId = parts[parts.length - 1]!;
+  const chave = interaction.values[0] as EmojiChave;
   const nome = NOMES_CHAVES[chave] ?? chave;
   const defaultEmoji = EMOJI_DEFAULTS[chave] ?? "❓";
-  const messageId = interaction.message.id;
 
   const modal = new ModalBuilder()
-    .setCustomId(`emoji_modal_${chave}_${messageId}`)
+    .setCustomId(`emoji_modal_${chave}_${msgId}`)
     .setTitle(`Configurar: ${nome}`)
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -204,42 +195,35 @@ export async function handleEmojiButton(interaction: ButtonInteraction): Promise
   await interaction.showModal(modal);
 }
 
+// Kept for backward compat with index.ts button handler
+export async function handleEmojiButton(interaction: ButtonInteraction): Promise<void> {
+  if (interaction.customId === "emoji_btn_reset") {
+    const messageId = interaction.message.id;
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`emoji_reset_confirm_${messageId}`).setLabel("✅ Sim, redefinir tudo").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`emoji_reset_cancel_${messageId}`).setLabel("❌ Cancelar").setStyle(ButtonStyle.Secondary),
+    );
+    await interaction.reply({ content: "⚠️ **Tem certeza?** Isso vai **redefinir TODOS os 28 emojis** ao padrão.", components: [row], ephemeral: true });
+  }
+}
+
 export async function handleResetButton(interaction: ButtonInteraction): Promise<void> {
   const guildId = interaction.guildId!;
-
   if (interaction.customId.startsWith("emoji_reset_confirm_")) {
     const messageId = interaction.customId.slice("emoji_reset_confirm_".length);
-
     try {
       await db.delete(emojiConfigTable).where(eq(emojiConfigTable.guildId, guildId));
-
       invalidateGuildCache(guildId);
       const emojis = await getGuildEmojis(guildId);
-
-      if (interaction.channel && messageId) {
-        const msg = await interaction.channel.messages.fetch(messageId).catch(() => null);
-        if (msg) {
-          await msg.edit({
-            embeds: [buildPanelEmbed(emojis)],
-            components: buildPanelComponents(emojis),
-          }).catch(() => {});
-        }
-      }
-
-      await interaction.update({
-        content: "✅ Todos os emojis foram redefinidos ao padrão com sucesso!",
-        components: [],
-      });
+      const msg = await interaction.channel?.messages.fetch(messageId).catch(() => null);
+      if (msg) await msg.edit({ embeds: [buildPanelEmbed(emojis)], components: buildComponents(emojis, messageId) }).catch(() => {});
+      await interaction.update({ content: "✅ Todos os 28 emojis foram redefinidos ao padrão!", components: [] });
     } catch (err) {
       logger.error({ err }, "Erro ao redefinir emojis");
-      await interaction.update({
-        content: "❌ Erro ao redefinir os emojis. Tente novamente.",
-        components: [],
-      });
+      await interaction.update({ content: "❌ Erro ao redefinir. Tente novamente.", components: [] });
     }
     return;
   }
-
   if (interaction.customId.startsWith("emoji_reset_cancel_")) {
     await interaction.update({ content: "❎ Redefinição cancelada.", components: [] });
   }
@@ -252,39 +236,22 @@ export async function handleEmojiModal(interaction: ModalSubmitInteraction): Pro
   const messageId = withoutPrefix.slice(lastUnder + 1);
   const nome = NOMES_CHAVES[chave] ?? chave;
   const guildId = interaction.guildId!;
-
   const novoEmoji = interaction.fields.getTextInputValue("emoji_input").trim();
 
   try {
-    const updated = await db
-      .update(emojiConfigTable)
-      .set({ emoji: novoEmoji })
+    const updated = await db.update(emojiConfigTable).set({ emoji: novoEmoji })
       .where(and(eq(emojiConfigTable.guildId, guildId), eq(emojiConfigTable.chave, chave)))
       .returning({ id: emojiConfigTable.id });
-
-    if (updated.length === 0) {
-      await db.insert(emojiConfigTable).values({ guildId, chave, emoji: novoEmoji });
-    }
+    if (updated.length === 0) await db.insert(emojiConfigTable).values({ guildId, chave, emoji: novoEmoji });
 
     invalidateGuildCache(guildId);
     const emojis = await getGuildEmojis(guildId);
-
-    if (interaction.channel && messageId) {
-      const msg = await interaction.channel.messages.fetch(messageId).catch(() => null);
-      if (msg) {
-        await msg.edit({
-          embeds: [buildPanelEmbed(emojis)],
-          components: buildPanelComponents(emojis),
-        }).catch(() => {});
-      }
-    }
+    const msg = await interaction.channel?.messages.fetch(messageId).catch(() => null);
+    if (msg) await msg.edit({ embeds: [buildPanelEmbed(emojis)], components: buildComponents(emojis, messageId) }).catch(() => {});
 
     await interaction.reply({ content: `✅ Emoji de **${nome}** atualizado para ${novoEmoji}!`, ephemeral: true });
   } catch (err) {
-    logger.error({ err }, "Erro ao salvar emoji config");
-    await interaction.reply({
-      content: "❌ Erro ao salvar o emoji. Verifique se a tabela `emoji_config` existe no banco de dados.",
-      ephemeral: true,
-    });
+    logger.error({ err }, "Erro ao salvar emoji");
+    await interaction.reply({ content: "❌ Erro ao salvar. Tente novamente.", ephemeral: true });
   }
 }
