@@ -15,17 +15,23 @@ import { getGuildEmojis, getRaridadeEmoji, type GuildEmojis } from "../lib/emoji
 
 export const data = new SlashCommandBuilder()
   .setName("ver-album")
-  .setDescription("Navega pelo seu álbum de figurinhas desbloqueadas")
+  .setDescription("Navega pelo seu álbum de figurinhas únicas")
   .addUserOption((opt) =>
     opt.setName("usuario").setDescription("Ver o álbum de outro usuário").setRequired(false)
   )
   .addStringOption((opt) =>
-    opt
-      .setName("busca")
-      .setDescription("Filtrar figurinhas pelo nome")
-      .setRequired(false)
-      .setMaxLength(50)
+    opt.setName("busca").setDescription("Filtrar figurinhas pelo nome").setRequired(false).setMaxLength(50)
   );
+
+function getRaridadeColor(raridade: string): number {
+  switch (raridade) {
+    case "incomum": return 0x57f287;
+    case "rara": return 0x5865f2;
+    case "épica": return 0x9b59b6;
+    case "lendária": return 0xf1c40f;
+    default: return 0x99aab5;
+  }
+}
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
@@ -37,7 +43,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const isSelf = alvoUser.id === interaction.user.id;
 
   try {
-    const [emojis, figurinhas] = await Promise.all([
+    const [emojis, todas] = await Promise.all([
       getGuildEmojis(guildId),
       db
         .select({
@@ -54,69 +60,66 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         .innerJoin(catalogoFigurinhasTable, eq(colecaoUsuarioTable.catalogoId, catalogoFigurinhasTable.id))
         .where(
           busca
-            ? and(
-                eq(colecaoUsuarioTable.guildId, guildId),
-                eq(colecaoUsuarioTable.userId, userId),
-                ilike(catalogoFigurinhasTable.titulo, `%${busca}%`)
-              )
-            : and(
-                eq(colecaoUsuarioTable.guildId, guildId),
-                eq(colecaoUsuarioTable.userId, userId)
-              )
+            ? and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, userId), ilike(catalogoFigurinhasTable.titulo, `%${busca}%`))
+            : and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, userId))
         )
         .orderBy(catalogoFigurinhasTable.numero),
     ]);
 
-    if (figurinhas.length === 0) {
-      if (busca) {
-        await interaction.editReply(
-          `🔍 ${isSelf ? "Você não tem" : `<@${userId}> não tem`} nenhuma figurinha com **"${busca}"** no álbum.\n\nRemova o filtro para ver o álbum completo.`
-        );
+    // Deduplica por catalogoId — álbum mostra só figurinhas únicas + conta cópias
+    type FigRow = typeof todas[number];
+    const uniqueMap = new Map<number, { fig: FigRow; copias: number; primeiraEm: Date }>();
+    for (const fig of todas) {
+      const ex = uniqueMap.get(fig.catalogoId);
+      if (!ex) {
+        uniqueMap.set(fig.catalogoId, { fig, copias: 1, primeiraEm: fig.desbloqueadoEm });
       } else {
-        await interaction.editReply(
-          `📭 ${isSelf ? "Você não tem" : `<@${userId}> não tem`} nenhuma figurinha ainda!\n\nUse **/abrir-pacote** para ganhar figurinhas.`
-        );
+        ex.copias++;
+        if (fig.desbloqueadoEm < ex.primeiraEm) ex.primeiraEm = fig.desbloqueadoEm;
       }
+    }
+
+    const figurinhas = Array.from(uniqueMap.values());
+
+    if (figurinhas.length === 0) {
+      await interaction.editReply(
+        busca
+          ? `🔍 ${isSelf ? "Você não tem" : `<@${userId}> não tem`} nenhuma figurinha com **"${busca}"** no álbum.`
+          : `📭 ${isSelf ? "Você não tem" : `<@${userId}> não tem`} nenhuma figurinha ainda!\n\nUse **/abrir-pacote** para começar.`
+      );
       return;
     }
 
     const totalPages = figurinhas.length;
+    const totalCopias = todas.length;
     let page = 0;
 
     const buildEmbed = (idx: number, guildEmojis: GuildEmojis) => {
-      const fig = figurinhas[idx]!;
-      const emoji = getRaridadeEmoji(guildEmojis, fig.raridade);
+      const { fig, copias, primeiraEm } = figurinhas[idx]!;
+      const rarEmoji = getRaridadeEmoji(guildEmojis, fig.raridade);
+      const raridadeNome = fig.raridade.charAt(0).toUpperCase() + fig.raridade.slice(1);
+      const copiasTexto = copias > 1 ? `📋 **${copias}x** *(${copias - 1} repetida${copias - 1 !== 1 ? "s" : ""})*` : "1 cópia";
 
       return new EmbedBuilder()
-        .setTitle(`📖 Álbum de ${alvoUser.username}${busca ? ` — busca: "${busca}"` : ""}`)
-        .setDescription(fig.descricao ?? "Sem descrição")
+        .setTitle(`${rarEmoji} #${fig.numero} — ${fig.titulo}`)
+        .setDescription(fig.descricao ? `*${fig.descricao}*` : "")
         .setImage(fig.imageUrl)
         .setColor(getRaridadeColor(fig.raridade))
         .addFields(
-          { name: "Título", value: fig.titulo, inline: true },
-          {
-            name: "Raridade",
-            value: `${emoji} ${fig.raridade.charAt(0).toUpperCase() + fig.raridade.slice(1)}`,
-            inline: true,
-          },
-          { name: "Nº no catálogo", value: `#${fig.numero}`, inline: true }
+          { name: "✨ Raridade", value: `${rarEmoji} ${raridadeNome}`, inline: true },
+          { name: "📋 Cópias", value: copiasTexto, inline: true },
+          { name: "🗂️ Catálogo", value: `#${fig.numero}`, inline: true },
         )
-        .setFooter({ text: `Figurinha ${idx + 1} de ${totalPages} • Desbloqueada em` })
-        .setTimestamp(fig.desbloqueadoEm);
+        .setAuthor({ name: `📖 Álbum de ${alvoUser.username}${busca ? ` — "${busca}"` : ""}`, iconURL: alvoUser.displayAvatarURL() })
+        .setFooter({ text: `Figurinha ${idx + 1} de ${totalPages} únicas • ${totalCopias} total${busca ? " (filtrado)" : ""} • Desbloqueada` })
+        .setTimestamp(primeiraEm);
     };
 
     const buildRow = (idx: number) =>
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId("prev")
-          .setLabel("◀ Anterior")
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(idx === 0),
-        new ButtonBuilder()
-          .setCustomId("next")
-          .setLabel("Próxima ▶")
-          .setStyle(ButtonStyle.Primary)
-          .setDisabled(idx === totalPages - 1)
+        new ButtonBuilder().setCustomId("ver_prev").setLabel("◀ Anterior").setStyle(ButtonStyle.Secondary).setDisabled(idx === 0),
+        new ButtonBuilder().setCustomId("ver_info").setLabel(`${idx + 1} / ${totalPages}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+        new ButtonBuilder().setCustomId("ver_next").setLabel("Próxima ▶").setStyle(ButtonStyle.Primary).setDisabled(idx === totalPages - 1),
       );
 
     const msg = await interaction.editReply({
@@ -129,12 +132,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const collector = msg.createMessageComponentCollector({
       componentType: ComponentType.Button,
       time: 120_000,
-      filter: (i) => i.user.id === interaction.user.id,
     });
 
     collector.on("collect", async (i) => {
-      if (i.customId === "prev" && page > 0) page--;
-      if (i.customId === "next" && page < totalPages - 1) page++;
+      if (i.user.id !== interaction.user.id) {
+        await i.reply({ content: "❌ Apenas quem usou o comando pode navegar pelo álbum.", ephemeral: true });
+        return;
+      }
+      if (i.customId === "ver_prev" && page > 0) page--;
+      if (i.customId === "ver_next" && page < totalPages - 1) page++;
       await i.update({ embeds: [buildEmbed(page, emojis)], components: [buildRow(page)] });
     });
 
@@ -144,15 +150,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   } catch (err) {
     logger.error({ err }, "Erro ao ver álbum");
     await interaction.editReply("❌ Erro ao buscar o álbum. Tente novamente.");
-  }
-}
-
-function getRaridadeColor(raridade: string): number {
-  switch (raridade) {
-    case "incomum": return 0x57f287;
-    case "rara": return 0x5865f2;
-    case "épica": return 0x9b59b6;
-    case "lendária": return 0xf1c40f;
-    default: return 0x99aab5;
   }
 }
