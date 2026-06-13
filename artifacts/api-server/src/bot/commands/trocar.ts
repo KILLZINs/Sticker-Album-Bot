@@ -11,7 +11,7 @@ import { db } from "@workspace/db";
 import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
-import { verificarConquistas } from "../lib/conquistas.js";
+import { verificarConquistas, anunciarConquistas } from "../lib/conquistas.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 import { getSaldo, deductMoedas, addMoedas } from "../lib/moedas.js";
 import { getGuildMoedaConfig } from "../lib/moeda-config.js";
@@ -64,10 +64,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
 
     const [minhaFigResult, deleFigResult] = await Promise.all([
-      db.select().from(catalogoFigurinhasTable)
-        .where(and(eq(catalogoFigurinhasTable.guildId, guildId), eq(catalogoFigurinhasTable.numero, meuNumero))).limit(1),
-      db.select().from(catalogoFigurinhasTable)
-        .where(and(eq(catalogoFigurinhasTable.guildId, guildId), eq(catalogoFigurinhasTable.numero, delesNumero))).limit(1),
+      db.select().from(catalogoFigurinhasTable).where(and(eq(catalogoFigurinhasTable.guildId, guildId), eq(catalogoFigurinhasTable.numero, meuNumero))).limit(1),
+      db.select().from(catalogoFigurinhasTable).where(and(eq(catalogoFigurinhasTable.guildId, guildId), eq(catalogoFigurinhasTable.numero, delesNumero))).limit(1),
     ]);
 
     const minhaFig = minhaFigResult[0];
@@ -78,22 +76,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     if (minhasMoedas > 0) {
       const maxMinhas = getMoedasMaxPorRaridade(figCfg, deleFig.raridade);
-      if (minhasMoedas > maxMinhas) {
-        await interaction.editReply(`❌ Máximo de ${nomeMoeda} que pode oferecer por uma figurinha **${deleFig.raridade}**: **${maxMinhas}**.`); return;
-      }
+      if (minhasMoedas > maxMinhas) { await interaction.editReply(`❌ Máximo de ${nomeMoeda} por figurinha **${deleFig.raridade}**: **${maxMinhas}**.`); return; }
     }
     if (moedasDeles > 0) {
       const maxDeles = getMoedasMaxPorRaridade(figCfg, minhaFig.raridade);
-      if (moedasDeles > maxDeles) {
-        await interaction.editReply(`❌ Máximo de ${nomeMoeda} que pode pedir por uma figurinha **${minhaFig.raridade}**: **${maxDeles}**.`); return;
-      }
+      if (moedasDeles > maxDeles) { await interaction.editReply(`❌ Máximo de ${nomeMoeda} por figurinha **${minhaFig.raridade}**: **${maxDeles}**.`); return; }
     }
 
     const [minhaNaColecao, deleNaColecao] = await Promise.all([
-      db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable)
-        .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, meuId), eq(colecaoUsuarioTable.catalogoId, minhaFig.id))).limit(1),
-      db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable)
-        .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, destino.id), eq(colecaoUsuarioTable.catalogoId, deleFig.id))).limit(1),
+      db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable).where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, meuId), eq(colecaoUsuarioTable.catalogoId, minhaFig.id))).limit(1),
+      db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable).where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, destino.id), eq(colecaoUsuarioTable.catalogoId, deleFig.id))).limit(1),
     ]);
 
     if (!minhaNaColecao[0]) { await interaction.editReply(`❌ Você não tem a figurinha **#${meuNumero} — ${minhaFig.titulo}**!`); return; }
@@ -101,9 +93,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     if (minhasMoedas > 0) {
       const meuSaldo = await getSaldo(guildId, meuId);
-      if (meuSaldo < minhasMoedas) {
-        await interaction.editReply(`❌ Você não tem ${nomeMoeda} suficientes! (Você tem **${meuSaldo}**, precisa de **${minhasMoedas}**)`); return;
-      }
+      if (meuSaldo < minhasMoedas) { await interaction.editReply(`❌ Você não tem ${nomeMoeda} suficientes! (Tem: **${meuSaldo}**, precisa: **${minhasMoedas}**)`); return; }
     }
 
     const emojiMinha = getRaridadeEmoji(emojis, minhaFig.raridade);
@@ -119,7 +109,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       moedasDeles > 0 ? `+ ${emojis.moedas} **${moedasDeles}** ${nomeMoeda}` : null,
     ].filter(Boolean).join("\n");
 
-    // IDs únicos por interação para evitar conflito entre múltiplas trocas
     const uid = interaction.id;
     const idAceitar = `troca_aceitar_${uid}`;
     const idRecusar = `troca_recusar_${uid}`;
@@ -138,14 +127,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const reply = await interaction.editReply({ embeds: [embed], components: [row] });
 
-    // Collector sem filtro — responde corretamente para qualquer usuário
-    const collector = reply.createMessageComponentCollector({
-      componentType: ComponentType.Button,
-      time: 60_000,
-    });
+    const collector = reply.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60_000 });
 
     collector.on("collect", async (btn) => {
-      // Usuário errado clicou — responde de forma efêmera e não fecha o collector
       if (btn.user.id !== destino.id) {
         await btn.reply({ content: `❌ Esta proposta é para <@${destino.id}>. Você não pode respondê-la.`, ephemeral: true });
         return;
@@ -154,32 +138,25 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       collector.stop("respondido");
 
       if (btn.customId === idRecusar) {
-        const embedRecusado = new EmbedBuilder()
-          .setDescription(`❌ <@${destino.id}> recusou a proposta de troca.`)
-          .setColor(0xe74c3c);
-        await btn.update({ embeds: [embedRecusado], components: [] });
+        await btn.update({ embeds: [new EmbedBuilder().setDescription(`❌ <@${destino.id}> recusou a proposta de troca.`).setColor(0xe74c3c)], components: [] });
         return;
       }
 
-      // Aceitar — revalidar tudo
+      // Aceitar — revalidar
       try {
         const [minhaAinda, deleAinda] = await Promise.all([
-          db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable)
-            .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, meuId), eq(colecaoUsuarioTable.catalogoId, minhaFig.id))).limit(1),
-          db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable)
-            .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, destino.id), eq(colecaoUsuarioTable.catalogoId, deleFig.id))).limit(1),
+          db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable).where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, meuId), eq(colecaoUsuarioTable.catalogoId, minhaFig.id))).limit(1),
+          db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable).where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, destino.id), eq(colecaoUsuarioTable.catalogoId, deleFig.id))).limit(1),
         ]);
 
         if (!minhaAinda[0]) { await btn.update({ content: `❌ <@${meuId}> não tem mais a figurinha **${minhaFig.titulo}**.`, embeds: [], components: [] }); return; }
         if (!deleAinda[0]) { await btn.update({ content: `❌ <@${destino.id}> não tem mais a figurinha **${deleFig.titulo}**.`, embeds: [], components: [] }); return; }
 
-        if (minhasMoedas > 0) {
-          const meuSaldoAtual = await getSaldo(guildId, meuId);
-          if (meuSaldoAtual < minhasMoedas) { await btn.update({ content: `❌ <@${meuId}> não tem mais ${nomeMoeda} suficientes.`, embeds: [], components: [] }); return; }
+        if (minhasMoedas > 0 && (await getSaldo(guildId, meuId)) < minhasMoedas) {
+          await btn.update({ content: `❌ <@${meuId}> não tem mais ${nomeMoeda} suficientes.`, embeds: [], components: [] }); return;
         }
-        if (moedasDeles > 0) {
-          const saldoDeles = await getSaldo(guildId, destino.id);
-          if (saldoDeles < moedasDeles) { await btn.update({ content: `❌ <@${destino.id}> não tem ${nomeMoeda} suficientes.`, embeds: [], components: [] }); return; }
+        if (moedasDeles > 0 && (await getSaldo(guildId, destino.id)) < moedasDeles) {
+          await btn.update({ content: `❌ <@${destino.id}> não tem ${nomeMoeda} suficientes.`, embeds: [], components: [] }); return;
         }
 
         // Trocar figurinhas
@@ -189,30 +166,29 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         await db.insert(colecaoUsuarioTable).values({ guildId, userId: meuId, username: interaction.user.username, catalogoId: deleFig.id });
 
         // Transferir moedas
-        if (minhasMoedas > 0) {
-          await deductMoedas(guildId, meuId, interaction.user.username, minhasMoedas);
-          await addMoedas(guildId, destino.id, destino.username, minhasMoedas);
-        }
-        if (moedasDeles > 0) {
-          await deductMoedas(guildId, destino.id, destino.username, moedasDeles);
-          await addMoedas(guildId, meuId, interaction.user.username, moedasDeles);
-        }
+        if (minhasMoedas > 0) { await deductMoedas(guildId, meuId, interaction.user.username, minhasMoedas); await addMoedas(guildId, destino.id, destino.username, minhasMoedas); }
+        if (moedasDeles > 0) { await deductMoedas(guildId, destino.id, destino.username, moedasDeles); await addMoedas(guildId, meuId, interaction.user.username, moedasDeles); }
 
-        await Promise.all([
+        // Verificar conquistas e anunciar
+        const [novasMeu, novasDele] = await Promise.all([
           verificarConquistas(guildId, meuId, interaction.user.username, { fezTroca: true }),
           verificarConquistas(guildId, destino.id, destino.username, { fezTroca: true }),
         ]);
+        await Promise.all([
+          anunciarConquistas(interaction.channelId, meuId, novasMeu, btn.client, guildId),
+          anunciarConquistas(interaction.channelId, destino.id, novasDele, btn.client, guildId),
+        ]);
 
-        const embedSucesso = new EmbedBuilder()
-          .setTitle("✅ Troca concluída!")
-          .setDescription(
-            `**<@${meuId}>** recebeu: ${emojiDele} **${deleFig.titulo}**${moedasDeles > 0 ? ` + ${emojis.moedas} ${moedasDeles} ${nomeMoeda}` : ""}\n` +
-            `**<@${destino.id}>** recebeu: ${emojiMinha} **${minhaFig.titulo}**${minhasMoedas > 0 ? ` + ${emojis.moedas} ${minhasMoedas} ${nomeMoeda}` : ""}`
-          )
-          .setColor(0x57f287)
-          .setTimestamp();
-
-        await btn.update({ embeds: [embedSucesso], components: [] });
+        await btn.update({
+          embeds: [new EmbedBuilder()
+            .setTitle("✅ Troca concluída!")
+            .setDescription(
+              `**<@${meuId}>** recebeu: ${emojiDele} **${deleFig.titulo}**${moedasDeles > 0 ? ` + ${emojis.moedas} ${moedasDeles} ${nomeMoeda}` : ""}\n` +
+              `**<@${destino.id}>** recebeu: ${emojiMinha} **${minhaFig.titulo}**${minhasMoedas > 0 ? ` + ${emojis.moedas} ${minhasMoedas} ${nomeMoeda}` : ""}`
+            )
+            .setColor(0x57f287).setTimestamp()],
+          components: [],
+        });
       } catch (err) {
         logger.error({ err }, "Erro ao executar troca");
         await btn.update({ content: "❌ Erro ao executar a troca. Tente novamente.", embeds: [], components: [] });
