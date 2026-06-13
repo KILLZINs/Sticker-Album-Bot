@@ -8,10 +8,10 @@ import {
   ComponentType,
 } from "discord.js";
 import { db } from "@workspace/db";
-import { colecaoUsuarioTable, catalogoFigurinhasTable, moedasUsuarioTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
-import { verificarConquistas, anunciarConquistas } from "../lib/conquistas.js";
+import { verificarConquistas } from "../lib/conquistas.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 import { getSaldo, deductMoedas, addMoedas } from "../lib/moedas.js";
 import { getGuildMoedaConfig } from "../lib/moeda-config.js";
@@ -49,9 +49,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   if (destino.id === meuId) { await interaction.editReply("❌ Você não pode trocar com você mesmo!"); return; }
   if (destino.bot) { await interaction.editReply("❌ Você não pode trocar com bots!"); return; }
-  if (meuNumero === delesNumero && minhasMoedas === 0 && moedasDeles === 0) {
-    await interaction.editReply("❌ Você está propondo trocar figurinhas idênticas sem compensação em moedas!"); return;
-  }
 
   try {
     const [emojis, moedaCfg, figCfg] = await Promise.all([
@@ -62,7 +59,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const nomeMoeda = moedaCfg.nomeMoeda;
 
-    // Validar moedas
     if ((minhasMoedas > 0 || moedasDeles > 0) && !figCfg.trocaMoedasHabilitado) {
       await interaction.editReply("❌ Moedas em trocas estão **desabilitadas** neste servidor."); return;
     }
@@ -80,32 +76,29 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     if (!minhaFig) { await interaction.editReply(`❌ Figurinha #${meuNumero} não existe no catálogo!`); return; }
     if (!deleFig) { await interaction.editReply(`❌ Figurinha #${delesNumero} não existe no catálogo!`); return; }
 
-    // Verificar limite de moedas por raridade
     if (minhasMoedas > 0) {
       const maxMinhas = getMoedasMaxPorRaridade(figCfg, deleFig.raridade);
       if (minhasMoedas > maxMinhas) {
-        await interaction.editReply(`❌ O máximo de ${nomeMoeda} que você pode oferecer por uma figurinha **${deleFig.raridade}** é **${maxMinhas}**.`); return;
+        await interaction.editReply(`❌ Máximo de ${nomeMoeda} que pode oferecer por uma figurinha **${deleFig.raridade}**: **${maxMinhas}**.`); return;
       }
     }
     if (moedasDeles > 0) {
       const maxDeles = getMoedasMaxPorRaridade(figCfg, minhaFig.raridade);
       if (moedasDeles > maxDeles) {
-        await interaction.editReply(`❌ O máximo de ${nomeMoeda} que pode ser pedido por uma figurinha **${minhaFig.raridade}** é **${maxDeles}**.`); return;
+        await interaction.editReply(`❌ Máximo de ${nomeMoeda} que pode pedir por uma figurinha **${minhaFig.raridade}**: **${maxDeles}**.`); return;
       }
     }
 
-    // Verificar posse das figurinhas
     const [minhaNaColecao, deleNaColecao] = await Promise.all([
-      db.select().from(colecaoUsuarioTable)
+      db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable)
         .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, meuId), eq(colecaoUsuarioTable.catalogoId, minhaFig.id))).limit(1),
-      db.select().from(colecaoUsuarioTable)
+      db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable)
         .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, destino.id), eq(colecaoUsuarioTable.catalogoId, deleFig.id))).limit(1),
     ]);
 
     if (!minhaNaColecao[0]) { await interaction.editReply(`❌ Você não tem a figurinha **#${meuNumero} — ${minhaFig.titulo}**!`); return; }
     if (!deleNaColecao[0]) { await interaction.editReply(`❌ <@${destino.id}> não tem a figurinha **#${delesNumero} — ${deleFig.titulo}**!`); return; }
 
-    // Verificar saldo de moedas
     if (minhasMoedas > 0) {
       const meuSaldo = await getSaldo(guildId, meuId);
       if (meuSaldo < minhasMoedas) {
@@ -126,38 +119,49 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       moedasDeles > 0 ? `+ ${emojis.moedas} **${moedasDeles}** ${nomeMoeda}` : null,
     ].filter(Boolean).join("\n");
 
+    // IDs únicos por interação para evitar conflito entre múltiplas trocas
+    const uid = interaction.id;
+    const idAceitar = `troca_aceitar_${uid}`;
+    const idRecusar = `troca_recusar_${uid}`;
+
     const embed = new EmbedBuilder()
       .setTitle("🔄 Proposta de Troca!")
-      .setDescription(`<@${destino.id}>, você recebeu uma proposta de troca!\n\n${descricaoTroca}`)
+      .setDescription(`<@${destino.id}>, você recebeu uma proposta!\n\n${descricaoTroca}`)
       .setColor(0x7B2FBE)
       .setFooter({ text: `Proposta expira em 60 segundos • Apenas ${destino.username} pode responder` })
       .setTimestamp();
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId("troca_aceitar").setLabel("✅ Aceitar troca").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId("troca_recusar").setLabel("❌ Recusar").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(idAceitar).setLabel("✅ Aceitar troca").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(idRecusar).setLabel("❌ Recusar").setStyle(ButtonStyle.Danger),
     );
 
     const reply = await interaction.editReply({ embeds: [embed], components: [row] });
 
+    // Collector sem filtro — responde corretamente para qualquer usuário
     const collector = reply.createMessageComponentCollector({
       componentType: ComponentType.Button,
       time: 60_000,
-      filter: (i) => i.user.id === destino.id,
     });
 
     collector.on("collect", async (btn) => {
-      collector.stop();
+      // Usuário errado clicou — responde de forma efêmera e não fecha o collector
+      if (btn.user.id !== destino.id) {
+        await btn.reply({ content: `❌ Esta proposta é para <@${destino.id}>. Você não pode respondê-la.`, ephemeral: true });
+        return;
+      }
 
-      if (btn.customId === "troca_recusar") {
+      collector.stop("respondido");
+
+      if (btn.customId === idRecusar) {
         const embedRecusado = new EmbedBuilder()
-          .setDescription(`❌ <@${destino.id}> recusou a troca.`)
+          .setDescription(`❌ <@${destino.id}> recusou a proposta de troca.`)
           .setColor(0xe74c3c);
         await btn.update({ embeds: [embedRecusado], components: [] });
         return;
       }
 
-      // Aceitar — revalidar tudo antes de executar
+      // Aceitar — revalidar tudo
       try {
         const [minhaAinda, deleAinda] = await Promise.all([
           db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable)
@@ -175,7 +179,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         }
         if (moedasDeles > 0) {
           const saldoDeles = await getSaldo(guildId, destino.id);
-          if (saldoDeles < moedasDeles) { await btn.update({ content: `❌ <@${destino.id}> não tem ${nomeMoeda} suficientes para completar a troca.`, embeds: [], components: [] }); return; }
+          if (saldoDeles < moedasDeles) { await btn.update({ content: `❌ <@${destino.id}> não tem ${nomeMoeda} suficientes.`, embeds: [], components: [] }); return; }
         }
 
         // Trocar figurinhas
@@ -194,7 +198,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           await addMoedas(guildId, meuId, interaction.user.username, moedasDeles);
         }
 
-        // Verificar conquistas
         await Promise.all([
           verificarConquistas(guildId, meuId, interaction.user.username, { fezTroca: true }),
           verificarConquistas(guildId, destino.id, destino.username, { fezTroca: true }),
@@ -216,8 +219,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       }
     });
 
-    collector.on("end", async (collected) => {
-      if (collected.size === 0) {
+    collector.on("end", async (_, reason) => {
+      if (reason !== "respondido") {
         await interaction.editReply({ content: "⏰ Proposta de troca expirou.", embeds: [], components: [] }).catch(() => {});
       }
     });
