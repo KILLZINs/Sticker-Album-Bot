@@ -11,7 +11,7 @@ import { db } from "@workspace/db";
 import { colecaoUsuarioTable, catalogoFigurinhasTable, moedasUsuarioTable } from "@workspace/db";
 import { eq, desc, count, countDistinct, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
-import { getGuildEmojis } from "../lib/emoji-config.js";
+import { getGuildEmojis, getRankingMedal } from "../lib/emoji-config.js";
 import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 
 const POR_PAGINA = 10;
@@ -41,16 +41,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const [emojis, moedaCfg, totalCatResult] = await Promise.all([
       getGuildEmojis(guildId),
       getGuildMoedaConfig(guildId),
-      db
-        .select({ total: count() })
-        .from(catalogoFigurinhasTable)
-        .where(eq(catalogoFigurinhasTable.guildId, guildId)),
+      db.select({ total: count() }).from(catalogoFigurinhasTable).where(eq(catalogoFigurinhasTable.guildId, guildId)),
     ]);
 
     const totalCatalogo = totalCatResult[0]?.total ?? 0;
     const nomeMoeda = moedaCfg.nomeMoeda;
 
-    // Buscar ranking completo
     let todos: { userId: string; username: string; valor: number }[] = [];
 
     if (filtro === "figurinhas") {
@@ -67,11 +63,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       todos = rows.map((r) => ({ ...r, valor: r.valor }));
     } else {
       const rows = await db
-        .select({
-          userId: moedasUsuarioTable.userId,
-          username: moedasUsuarioTable.username,
-          valor: moedasUsuarioTable.saldo,
-        })
+        .select({ userId: moedasUsuarioTable.userId, username: moedasUsuarioTable.username, valor: moedasUsuarioTable.saldo })
         .from(moedasUsuarioTable)
         .where(eq(moedasUsuarioTable.guildId, guildId))
         .orderBy(desc(moedasUsuarioTable.saldo));
@@ -79,9 +71,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
 
     if (todos.length === 0) {
-      await interaction.editReply(
-        "📭 Ninguém aparece no ranking ainda!\n\nAbra um pacote com **/abrir-pacote** para começar."
-      );
+      await interaction.editReply("📭 Ninguém aparece no ranking ainda!\n\nAbra um pacote com **/abrir-pacote** para começar.");
       return;
     }
 
@@ -89,15 +79,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     let pagina = 0;
     const meuIdx = todos.findIndex((e) => e.userId === interaction.user.id);
 
-    const medalhas = ["🥇", "🥈", "🥉"];
-
     const buildEmbed = (pag: number) => {
       const inicio = pag * POR_PAGINA;
       const slice = todos.slice(inicio, inicio + POR_PAGINA);
 
       const linhas = slice.map((entry, i) => {
         const pos = inicio + i;
-        const medalha = medalhas[pos] ?? `**${pos + 1}.**`;
+        const medalha = getRankingMedal(emojis, pos);
         const voce = entry.userId === interaction.user.id ? " 👈 **você**" : "";
         if (filtro === "figurinhas") {
           const pct = totalCatalogo > 0 ? Math.round((entry.valor / totalCatalogo) * 100) : 0;
@@ -107,7 +95,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         }
       });
 
-      // Mostrar posição do usuário se não está na página atual
       let rodape = "";
       if (meuIdx >= 0 && (meuIdx < inicio || meuIdx >= inicio + POR_PAGINA)) {
         const meu = todos[meuIdx]!;
@@ -128,68 +115,33 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         .setColor(0x7B2FBE)
         .setDescription(linhas.join("\n") + rodape)
         .setFooter({
-          text: `Página ${pag + 1}/${totalPaginas} • ${todos.length} jogadores${
-            filtro === "figurinhas" ? ` • Catálogo: ${totalCatalogo} figurinhas` : ""
-          }`,
+          text: `Página ${pag + 1}/${totalPaginas} • ${todos.length} jogadores${filtro === "figurinhas" ? ` • Catálogo: ${totalCatalogo} figurinhas` : ""}`,
         })
         .setTimestamp();
     };
 
     const buildRow = (pag: number) =>
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId("rank_prev")
-          .setLabel("◀ Anterior")
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(pag === 0),
-        new ButtonBuilder()
-          .setCustomId("rank_first")
-          .setLabel("⏮ Início")
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(pag === 0),
-        new ButtonBuilder()
-          .setCustomId("rank_me")
-          .setLabel("📍 Minha posição")
-          .setStyle(ButtonStyle.Primary)
-          .setDisabled(meuIdx < 0),
-        new ButtonBuilder()
-          .setCustomId("rank_last")
-          .setLabel("⏭ Fim")
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(pag === totalPaginas - 1),
-        new ButtonBuilder()
-          .setCustomId("rank_next")
-          .setLabel("Próxima ▶")
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(pag === totalPaginas - 1),
+        new ButtonBuilder().setCustomId("rank_prev").setLabel("◀ Anterior").setStyle(ButtonStyle.Secondary).setDisabled(pag === 0),
+        new ButtonBuilder().setCustomId("rank_first").setLabel("⏮ Início").setStyle(ButtonStyle.Secondary).setDisabled(pag === 0),
+        new ButtonBuilder().setCustomId("rank_me").setLabel("📍 Minha posição").setStyle(ButtonStyle.Primary).setDisabled(meuIdx < 0),
+        new ButtonBuilder().setCustomId("rank_last").setLabel("⏭ Fim").setStyle(ButtonStyle.Secondary).setDisabled(pag === totalPaginas - 1),
+        new ButtonBuilder().setCustomId("rank_next").setLabel("Próxima ▶").setStyle(ButtonStyle.Secondary).setDisabled(pag === totalPaginas - 1),
       );
 
-    const msg = await interaction.editReply({
-      embeds: [buildEmbed(pagina)],
-      components: totalPaginas > 1 ? [buildRow(pagina)] : [],
-    });
-
+    const msg = await interaction.editReply({ embeds: [buildEmbed(pagina)], components: totalPaginas > 1 ? [buildRow(pagina)] : [] });
     if (totalPaginas <= 1) return;
 
-    const collector = msg.createMessageComponentCollector({
-      componentType: ComponentType.Button,
-      time: 120_000,
-      filter: (i) => i.user.id === interaction.user.id,
-    });
-
+    const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 120_000, filter: (i) => i.user.id === interaction.user.id });
     collector.on("collect", async (i) => {
       if (i.customId === "rank_prev" && pagina > 0) pagina--;
       else if (i.customId === "rank_next" && pagina < totalPaginas - 1) pagina++;
       else if (i.customId === "rank_first") pagina = 0;
       else if (i.customId === "rank_last") pagina = totalPaginas - 1;
       else if (i.customId === "rank_me" && meuIdx >= 0) pagina = Math.floor(meuIdx / POR_PAGINA);
-
       await i.update({ embeds: [buildEmbed(pagina)], components: [buildRow(pagina)] });
     });
-
-    collector.on("end", async () => {
-      await interaction.editReply({ components: [] }).catch(() => {});
-    });
+    collector.on("end", async () => { await interaction.editReply({ components: [] }).catch(() => {}); });
   } catch (err) {
     logger.error({ err }, "Erro ao buscar ranking");
     await interaction.editReply("❌ Erro ao buscar o ranking. Tente novamente.");
