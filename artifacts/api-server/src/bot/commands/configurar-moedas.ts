@@ -42,7 +42,8 @@ function buildPanelEmbed(config: GuildMoedaConfig): EmbedBuilder {
         name: "💰 Economia",
         value:
           `**Nome da moeda:** ${config.nomeMoeda}\n` +
-          `**Ganho por mensagem:** +${config.moedasPorMensagem} ${config.nomeMoeda} (≥5 caracteres)`,
+          `**Ganho por mensagem:** +${config.moedasPorMensagem} ${config.nomeMoeda}\n` +
+          `**Mínimo de caracteres:** ≥${config.comprimentoMinMensagem} para ganhar ${config.nomeMoeda}`,
         inline: false,
       },
       {
@@ -68,6 +69,10 @@ function buildPanelComponents(): ActionRowBuilder<ButtonBuilder>[] {
     new ButtonBuilder()
       .setCustomId("moeda_btn_moedas_por_mensagem")
       .setLabel("✉️ Ganho por mensagem")
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId("moeda_btn_comprimento_min_mensagem")
+      .setLabel("🔤 Mín. caracteres")
       .setStyle(ButtonStyle.Secondary),
   );
 
@@ -112,7 +117,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 }
 
 export async function handleMoedaButton(interaction: ButtonInteraction): Promise<void> {
-  // Botão de reset — pede confirmação
   if (interaction.customId === "moeda_btn_reset") {
     const messageId = interaction.message.id;
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -134,16 +138,15 @@ export async function handleMoedaButton(interaction: ButtonInteraction): Promise
     return;
   }
 
-  // Botão individual — customId: moeda_btn_{chave}
   const chave = interaction.customId.slice("moeda_btn_".length) as MoedaChave;
   const nome = MOEDA_NOMES[chave] ?? chave;
   const defaultValor = MOEDA_DEFAULTS[chave] ?? "?";
   const messageId = interaction.message.id;
 
-  const isNumerico = chave !== "nome_moeda";
-  const placeholder = isNumerico
-    ? `Padrão: ${defaultValor}   Apenas número inteiro (ex: ${defaultValor})`
-    : `Padrão: ${defaultValor}   Ex: moedas, gemas, estrelas (máx. 20 caracteres)`;
+  const isNome = chave === "nome_moeda";
+  const placeholder = isNome
+    ? `Padrão: ${defaultValor}   Ex: moedas, gemas, estrelas (máx. 20 caracteres)`
+    : `Padrão: ${defaultValor}   Apenas número inteiro (ex: ${defaultValor})`;
 
   const modal = new ModalBuilder()
     .setCustomId(`moeda_modal_${chave}_${messageId}`)
@@ -156,7 +159,7 @@ export async function handleMoedaButton(interaction: ButtonInteraction): Promise
           .setPlaceholder(placeholder)
           .setStyle(TextInputStyle.Short)
           .setMinLength(1)
-          .setMaxLength(isNumerico ? 6 : 20)
+          .setMaxLength(isNome ? 20 : 6)
           .setRequired(true)
       )
     );
@@ -171,10 +174,7 @@ export async function handleMoedaResetButton(interaction: ButtonInteraction): Pr
     const messageId = interaction.customId.slice("moeda_reset_confirm_".length);
 
     try {
-      await db
-        .delete(moedaConfigTable)
-        .where(eq(moedaConfigTable.guildId, guildId));
-
+      await db.delete(moedaConfigTable).where(eq(moedaConfigTable.guildId, guildId));
       invalidateMoedaCache(guildId);
       const config = await getGuildMoedaConfig(guildId);
 
@@ -194,24 +194,17 @@ export async function handleMoedaResetButton(interaction: ButtonInteraction): Pr
       });
     } catch (err) {
       logger.error({ err }, "Erro ao redefinir moeda config");
-      await interaction.update({
-        content: "❌ Erro ao redefinir. Tente novamente.",
-        components: [],
-      });
+      await interaction.update({ content: "❌ Erro ao redefinir. Tente novamente.", components: [] });
     }
     return;
   }
 
   if (interaction.customId.startsWith("moeda_reset_cancel_")) {
-    await interaction.update({
-      content: "❎ Redefinição cancelada.",
-      components: [],
-    });
+    await interaction.update({ content: "❎ Redefinição cancelada.", components: [] });
   }
 }
 
 export async function handleMoedaModal(interaction: ModalSubmitInteraction): Promise<void> {
-  // customId: moeda_modal_{chave}_{messageId}
   const withoutPrefix = interaction.customId.slice("moeda_modal_".length);
   const lastUnder = withoutPrefix.lastIndexOf("_");
   const chave = withoutPrefix.slice(0, lastUnder) as MoedaChave;
@@ -221,9 +214,8 @@ export async function handleMoedaModal(interaction: ModalSubmitInteraction): Pro
 
   let novoValor = interaction.fields.getTextInputValue("moeda_input").trim();
 
-  // Validação para campos numéricos
-  const isNumerico = chave !== "nome_moeda";
-  if (isNumerico) {
+  const isNome = chave === "nome_moeda";
+  if (!isNome) {
     const num = parseInt(novoValor, 10);
     if (isNaN(num) || num < 1) {
       await interaction.reply({
