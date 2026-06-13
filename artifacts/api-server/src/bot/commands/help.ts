@@ -53,6 +53,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
               `\`/saldo\` — Vê suas ${nome}, nível de rebirth e preços dos pacotes\n` +
               `\`/atm @usuário\` — Vê o saldo e nível de outro usuário\n` +
               `\`/ranking\` — Ranking do servidor (filtre por ${nome} ou figurinhas únicas)\n` +
+              `\`/stats\` — Estatísticas gerais do servidor (catálogo, recordes, figurinhas raras)\n` +
               `\`/biografia\` — Exibe informações gerais do bot neste servidor`,
             inline: false,
           },
@@ -134,8 +135,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           {
             name: "⚙️ Configurações",
             value:
-              `\`/configurar-emojis\` — Personaliza os 12 emojis do bot\n` +
-              `  • Moedas · Pacotes (Standard/Deluxe/Ultimate) · Raridades · Níveis de rebirth\n` +
+              `\`/configurar-emojis\` — Personaliza os **28 emojis** do bot\n` +
+              `  • Moedas · Pacotes · Raridades · Níveis · Ranking (🥇🥈🥉) · 13 badges de conquistas\n` +
               `\`/configurar-moedas\` — Configura a economia do servidor\n` +
               `  • Nome da moeda · Ganho por mensagem · Mínimo de caracteres · Preços dos pacotes\n` +
               `\`/configurar-figurinhas\` — Configura trocas e doações\n` +
