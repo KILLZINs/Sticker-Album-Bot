@@ -96,12 +96,13 @@ export async function startBot() {
     logger.info({ tag: c.user.tag }, "🤖 Bot do Álbum de Figurinhas online!");
   });
 
+  // Moedas por mensagem — comprimento mínimo configurável por servidor
   client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
     if (!message.guildId) return;
-    if (message.content.length < 5) return;
     try {
       const moedaCfg = await getGuildMoedaConfig(message.guildId);
+      if (message.content.length < moedaCfg.comprimentoMinMensagem) return;
       await addMoedas(message.guildId, message.author.id, message.author.username, moedaCfg.moedasPorMensagem);
     } catch (err) {
       logger.warn({ err, userId: message.author.id }, "Falha ao adicionar moedas por mensagem");
