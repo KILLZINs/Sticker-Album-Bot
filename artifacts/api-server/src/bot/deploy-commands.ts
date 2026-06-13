@@ -7,7 +7,7 @@ import * as catalogo from "./commands/catalogo.js";
 import * as verAlbum from "./commands/ver-album.js";
 import * as figurinhas from "./commands/figurinhas.js";
 import * as ranking from "./commands/ranking.js";
-import * as proporTroca from "./commands/propor-troca.js";
+import * as trocar from "./commands/trocar.js";
 import * as conquistas from "./commands/conquistas.js";
 import * as rebirth from "./commands/rebirth.js";
 import * as removerFigurinha from "./commands/remover.js";
@@ -21,7 +21,10 @@ import * as repetidas from "./commands/repetidas.js";
 import * as darFigurinha from "./commands/dar-figurinha.js";
 import * as configurarEmojis from "./commands/configurar-emojis.js";
 import * as configurarMoedas from "./commands/configurar-moedas.js";
+import * as configurarFigurinhas from "./commands/configurar-figurinhas.js";
+import * as modificarFigurinha from "./commands/modificar-figurinha.js";
 import * as biografia from "./commands/biografia.js";
+import * as comparar from "./commands/comparar.js";
 
 const commands = [
   criarFigurinha.data,
@@ -31,7 +34,7 @@ const commands = [
   verAlbum.data,
   figurinhas.data,
   ranking.data,
-  proporTroca.data,
+  trocar.data,
   conquistas.data,
   rebirth.data,
   removerFigurinha.data,
@@ -45,7 +48,10 @@ const commands = [
   darFigurinha.data,
   configurarEmojis.data,
   configurarMoedas.data,
+  configurarFigurinhas.data,
+  modificarFigurinha.data,
   biografia.data,
+  comparar.data,
 ].map((cmd) => cmd.toJSON());
 
 export async function deployCommands() {
@@ -61,9 +67,7 @@ export async function deployCommands() {
 
   try {
     logger.info(`Registrando ${commands.length} comandos slash globalmente...`);
-    const data = await rest.put(Routes.applicationCommands(clientId), {
-      body: commands,
-    });
+    const data = await rest.put(Routes.applicationCommands(clientId), { body: commands });
     logger.info({ count: (data as unknown[]).length }, "Comandos registrados com sucesso!");
   } catch (err) {
     logger.error({ err }, "Erro ao registrar comandos");
