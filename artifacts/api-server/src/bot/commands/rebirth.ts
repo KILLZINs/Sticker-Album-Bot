@@ -9,7 +9,7 @@ import {
 } from "discord.js";
 import { db } from "@workspace/db";
 import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, countDistinct } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import {
   getSaldo,
@@ -18,13 +18,20 @@ import {
   PACKS,
   calcularPreco,
   MAX_NIVEL,
+  type TipoPacote,
 } from "../lib/moedas.js";
-import { getGuildEmojis, getNivelDisplay } from "../lib/emoji-config.js";
+import { getGuildEmojis, getNivelDisplay, type GuildEmojis } from "../lib/emoji-config.js";
 import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("rebirth")
-  .setDescription("Suba de nível! Reseta seu álbum e ganha preços menores nos pacotinhos.");
+  .setDescription("Suba de nível! Reseta seu álbum e conquista descontos permanentes nos pacotinhos.");
+
+const PACK_EMOJI_CHAVE: Record<TipoPacote, keyof GuildEmojis> = {
+  standard: "pacote_standard",
+  deluxe: "pacote_deluxe",
+  ultimate: "pacote_ultimate",
+};
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
@@ -49,33 +56,42 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         .setTitle(`${emojis.nivel_ouro} Nível Máximo Atingido!`)
         .setDescription(
           `Você já está no nível máximo: **${nivelAtualNome}**\n\n` +
-          `Parabéns por chegar ao topo! Continue colecionando figurinhas! 🎉`
+          `🎉 Parabéns! Continue colecionando figurinhas!`
         )
-        .setColor(0x470f78)
+        .setColor(0xf39c12)
+        .setThumbnail(interaction.user.displayAvatarURL())
         .setTimestamp();
       await interaction.editReply({ embeds: [embed] });
       return;
     }
 
-    const [{ totalCatalogo }] = await db
-      .select({ totalCatalogo: count() })
-      .from(catalogoFigurinhasTable)
-      .where(eq(catalogoFigurinhasTable.guildId, guildId));
+    const [totalCatResult, totalUsuResult] = await Promise.all([
+      db.select({ total: countDistinct(catalogoFigurinhasTable.id) })
+        .from(catalogoFigurinhasTable)
+        .where(eq(catalogoFigurinhasTable.guildId, guildId)),
+      db.select({ total: countDistinct(colecaoUsuarioTable.catalogoId) })
+        .from(colecaoUsuarioTable)
+        .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, userId))),
+    ]);
 
-    const [{ totalUsuario }] = await db
-      .select({ totalUsuario: count() })
-      .from(colecaoUsuarioTable)
-      .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, userId)));
+    const totalCatalogo = totalCatResult[0]?.total ?? 0;
+    const totalUsuario = totalUsuResult[0]?.total ?? 0;
 
     if (totalCatalogo === 0 || totalUsuario < totalCatalogo) {
+      const pct = totalCatalogo > 0 ? Math.round((totalUsuario / totalCatalogo) * 100) : 0;
+      const barraLen = 16;
+      const preenchido = Math.round((pct / 100) * barraLen);
+      const barra = "█".repeat(preenchido) + "░".repeat(barraLen - preenchido);
+
       const embed = new EmbedBuilder()
-        .setTitle("❌ Coleção incompleta!")
+        .setTitle("❌ Coleção incompleta para Rebirth!")
         .setDescription(
           `Você precisa coletar **TODAS** as figurinhas do catálogo antes de fazer o Rebirth.\n\n` +
-          `📊 Seu progresso: **${totalUsuario}/${totalCatalogo}** figurinhas\n\n` +
+          `**Progresso:**\n\`${barra}\` ${totalUsuario}/${totalCatalogo} (**${pct}%**)\n\n` +
           `Use **/catalogo** para ver quais figurinhas ainda faltam.`
         )
-        .setColor(0x470f78)
+        .setColor(0xe74c3c)
+        .setThumbnail(interaction.user.displayAvatarURL())
         .setTimestamp();
       await interaction.editReply({ embeds: [embed] });
       return;
@@ -84,36 +100,38 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const proximoNivel = nivel + 1;
     const proximoNome = getNivelDisplay(emojis, proximoNivel);
 
-    const precosBase: Record<string, number> = {
+    const precosBase: Record<TipoPacote, number> = {
       standard: moedaCfg.precoStandard,
       deluxe: moedaCfg.precoDeluxe,
       ultimate: moedaCfg.precoUltimate,
     };
 
-    const linhasPrecos = Object.entries(PACKS)
+    const linhasPrecos = (Object.entries(PACKS) as [TipoPacote, typeof PACKS[TipoPacote]][])
       .map(([tipo, pack]) => {
-        const precoAtual = calcularPreco(precosBase[tipo] ?? pack.precoBase, nivel);
-        const precoNovo = calcularPreco(precosBase[tipo] ?? pack.precoBase, proximoNivel);
-        return `${pack.emoji} **${pack.nome}**: ~~${precoAtual}~~ → **${precoNovo} ${nomeMoeda}**`;
+        const precoAtual = calcularPreco(precosBase[tipo], nivel);
+        const precoNovo = calcularPreco(precosBase[tipo], proximoNivel);
+        const packEmoji = emojis[PACK_EMOJI_CHAVE[tipo]];
+        return `${packEmoji} **${pack.nome}**: ~~${precoAtual}~~ → **${precoNovo}** ${nomeMoeda}`;
       })
       .join("\n");
 
     const embed = new EmbedBuilder()
       .setTitle(`🔁 Rebirth — ${nivelAtualNome} → ${proximoNome}`)
       .setDescription(
-        `> ⚠️ **ATENÇÃO:** Seu álbum será **completamente resetado**!\n` +
-        `> Todas as suas figurinhas serão perdidas.\n` +
-        `> Suas ${nomeMoeda} (**${saldo}**) e conquistas serão **mantidas**.\n\n` +
-        `**Novos preços dos pacotinhos após o Rebirth:**\n${linhasPrecos}\n\n` +
-        `Tem certeza que deseja fazer o Rebirth para **${proximoNome}**?`
+        `> ⚠️ **Seu álbum será resetado completamente!**\n` +
+        `> Todas as suas figurinhas serão perdidas permanentemente.\n` +
+        `> Suas **${saldo.toLocaleString("pt-BR")} ${nomeMoeda}** e conquistas **serão mantidas**.\n\n` +
+        `**Novos preços após o Rebirth:**\n${linhasPrecos}\n\n` +
+        `Deseja evoluir para **${proximoNome}**?`
       )
-      .setColor(0x7B2FBE)
+      .setColor(0x9b59b6)
+      .setThumbnail(interaction.user.displayAvatarURL())
       .setTimestamp();
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId("rebirth_confirm")
-        .setLabel("✅ Confirmar Rebirth")
+        .setLabel("🔁 Confirmar Rebirth")
         .setStyle(ButtonStyle.Danger),
       new ButtonBuilder()
         .setCustomId("rebirth_cancel")
@@ -137,20 +155,21 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         return;
       }
 
-      await db.delete(colecaoUsuarioTable).where(
-        and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, userId))
-      );
+      await db
+        .delete(colecaoUsuarioTable)
+        .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, userId)));
 
       await setNivelRebirth(guildId, userId, username, proximoNivel);
 
       const embedSucesso = new EmbedBuilder()
         .setTitle(`🎉 Rebirth concluído! Bem-vindo ao ${proximoNome}!`)
         .setDescription(
-          `Seu álbum foi resetado e agora você é **${proximoNome}**!\n\n` +
+          `Seu álbum foi resetado. Você é agora **${proximoNome}**!\n\n` +
           `**Seus novos preços de pacotinhos:**\n${linhasPrecos}\n\n` +
-          `Abra pacotinhos para reconstruir seu álbum! 🚀`
+          `Abra pacotinhos para reconstruir sua coleção! 🚀`
         )
         .setColor(0x470f78)
+        .setThumbnail(interaction.user.displayAvatarURL())
         .setTimestamp();
 
       await btn.update({ embeds: [embedSucesso], components: [] });
@@ -158,7 +177,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     collector.on("end", async (collected) => {
       if (collected.size === 0) {
-        await interaction.editReply({ content: "⏰ Rebirth expirou — nenhuma ação tomada.", embeds: [], components: [] }).catch(() => {});
+        await interaction
+          .editReply({ content: "⏰ Rebirth expirou — nenhuma ação tomada.", embeds: [], components: [] })
+          .catch(() => {});
       }
     });
   } catch (err) {
