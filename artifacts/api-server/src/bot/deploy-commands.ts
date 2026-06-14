@@ -19,13 +19,14 @@ import * as atm from "./commands/atm.js";
 import * as forceReset from "./commands/forcereset.js";
 import * as repetidas from "./commands/repetidas.js";
 import * as darFigurinha from "./commands/dar-figurinha.js";
-import * as configurarEmojis from "./commands/configurar-emojis.js";
-import * as configurarMoedas from "./commands/configurar-moedas.js";
-import * as configurarFigurinhas from "./commands/configurar-figurinhas.js";
-import * as modificarFigurinha from "./commands/modificar-figurinha.js";
 import * as biografia from "./commands/biografia.js";
 import * as comparar from "./commands/comparar.js";
+import * as configurarEmojis from "./commands/configurar-emojis.js";
+import * as configurarFigurinhas from "./commands/configurar-figurinhas.js";
+import * as configurarMoedas from "./commands/configurar-moedas.js";
+import * as modificarFigurinha from "./commands/modificar-figurinha.js";
 import * as stats from "./commands/stats.js";
+import * as adicionar from "./commands/adicionar.js";
 
 const commands = [
   criarFigurinha.data,
@@ -47,13 +48,14 @@ const commands = [
   forceReset.data,
   repetidas.data,
   darFigurinha.data,
-  configurarEmojis.data,
-  configurarMoedas.data,
-  configurarFigurinhas.data,
-  modificarFigurinha.data,
   biografia.data,
   comparar.data,
+  configurarEmojis.data,
+  configurarFigurinhas.data,
+  configurarMoedas.data,
+  modificarFigurinha.data,
   stats.data,
+  adicionar.data,
 ].map((cmd) => cmd.toJSON());
 
 export async function deployCommands() {
@@ -69,7 +71,9 @@ export async function deployCommands() {
 
   try {
     logger.info(`Registrando ${commands.length} comandos slash globalmente...`);
-    const data = await rest.put(Routes.applicationCommands(clientId), { body: commands });
+    const data = await rest.put(Routes.applicationCommands(clientId), {
+      body: commands,
+    });
     logger.info({ count: (data as unknown[]).length }, "Comandos registrados com sucesso!");
   } catch (err) {
     logger.error({ err }, "Erro ao registrar comandos");
