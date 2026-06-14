@@ -15,6 +15,7 @@ import { verificarConquistas, anunciarConquistas } from "../lib/conquistas.js";
 import { getSaldo, deductMoedas, getNivelRebirth, PACKS, NIVEL_NOME, calcularPreco, type TipoPacote } from "../lib/moedas.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 import { getGuildMoedaConfig } from "../lib/moeda-config.js";
+import { refreshAttachmentUrls } from "../lib/refresh-attachments.js";
 
 const RARIDADE_PESO: Record<string, number> = { comum: 55, incomum: 25, rara: 12, "épica": 6, "lendária": 2 };
 const RARIDADE_CHANCE: Record<string, string> = { comum: "55%", incomum: "25%", rara: "12%", "épica": "6%", "lendária": "2%" };
@@ -58,7 +59,6 @@ function buildPackEmbed(
   // custom IDs: "pacote_prev_{sessionKey}" and "pacote_next_{sessionKey}"
   // sessionKey = "{userId}_{interactionId}" ≤ 20 + 1 + 20 = 41 chars — well under Discord's 100-char limit
   const imageUrl = fig.imageUrl || null;
-  logger.info({ figurinha: fig.titulo, imageUrl }, "[abrir-pacote] imageUrl da figurinha");
 
   const embed = new EmbedBuilder()
     .setTitle(`${packEmoji} ${packNome} de ${username}`)
@@ -147,12 +147,21 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const sorteadas = sortearComPeso(catalogo, pack.figurinhas);
     await db.insert(colecaoUsuarioTable).values(sorteadas.map((fig) => ({ guildId, userId, username, catalogoId: fig.id })));
 
+    // Renova URLs expiradas da CDN do Discord antes de montar a sessão
+    const refreshMap = await refreshAttachmentUrls(
+      interaction.client,
+      sorteadas.map((s) => s.imageUrl).filter(Boolean) as string[],
+    );
+    const stickers = refreshMap.size > 0
+      ? sorteadas.map((s) => ({ ...s, imageUrl: refreshMap.get(s.imageUrl) ?? s.imageUrl }))
+      : sorteadas;
+
     cleanExpiredSessions();
 
     // session key: "{userId}_{interactionId}" — unique per pack opening
     const sessionKey = `${userId}_${interaction.id}`;
     const session: PackSession = {
-      stickers: sorteadas,
+      stickers,
       page: 0,
       userId,
       username,
