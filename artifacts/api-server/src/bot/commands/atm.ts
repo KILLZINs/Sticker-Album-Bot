@@ -4,10 +4,10 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import { db } from "@workspace/db";
-import { colecaoUsuarioTable, moedasUsuarioTable } from "@workspace/db";
-import { eq, and, countDistinct } from "drizzle-orm";
+import { colecaoUsuarioTable, moedasUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
+import { eq, and, countDistinct, count } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
-import { NIVEL_NOME, PACKS, calcularPreco, type TipoPacote } from "../lib/moedas.js";
+import { PACKS, calcularPreco, type TipoPacote } from "../lib/moedas.js";
 import { getGuildEmojis, getNivelDisplay, type GuildEmojis } from "../lib/emoji-config.js";
 import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 
@@ -39,7 +39,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   try {
-    const [rowResult, colecaoResult, emojis, moedaCfg] = await Promise.all([
+    const [rowResult, colecaoResult, totalCatResult, emojis, moedaCfg] = await Promise.all([
       db
         .select({ saldo: moedasUsuarioTable.saldo, nivelRebirth: moedasUsuarioTable.nivelRebirth })
         .from(moedasUsuarioTable)
@@ -49,6 +49,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         .select({ totalUnicas: countDistinct(colecaoUsuarioTable.catalogoId) })
         .from(colecaoUsuarioTable)
         .where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, alvo.id))),
+      db.select({ total: count() }).from(catalogoFigurinhasTable).where(eq(catalogoFigurinhasTable.guildId, guildId)),
       getGuildEmojis(guildId),
       getGuildMoedaConfig(guildId),
     ]);
@@ -56,6 +57,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const saldo = rowResult[0]?.saldo ?? 0;
     const nivel = rowResult[0]?.nivelRebirth ?? 0;
     const totalUnicas = colecaoResult[0]?.totalUnicas ?? 0;
+    const totalCatalogo = totalCatResult[0]?.total ?? 0;
     const nivelNome = getNivelDisplay(emojis, nivel);
     const nomeMoeda = moedaCfg.nomeMoeda;
 
@@ -65,23 +67,28 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       ultimate: moedaCfg.precoUltimate,
     };
 
-    const pacotes = (Object.entries(PACKS) as [TipoPacote, typeof PACKS[TipoPacote]][])
+    const linhasPrecos = (Object.entries(PACKS) as [TipoPacote, typeof PACKS[TipoPacote]][])
       .map(([tipo, pack]) => {
         const preco = calcularPreco(precosBase[tipo], nivel);
         const podeComprar = saldo >= preco ? "✅" : "❌";
         const packEmoji = emojis[PACK_EMOJI_CHAVE[tipo]];
-        return `${podeComprar} ${packEmoji} ${pack.nome}: **${preco}**`;
+        return `${podeComprar} ${packEmoji} **${pack.nome}**: \`${preco}\` ${nomeMoeda}`;
       })
-      .join(" · ");
+      .join("\n");
+
+    const pct = totalCatalogo > 0 ? Math.round((totalUnicas / totalCatalogo) * 100) : 0;
+    const barraLen = 10;
+    const preenchido = Math.round((pct / 100) * barraLen);
+    const barra = "█".repeat(preenchido) + "░".repeat(barraLen - preenchido);
 
     const embed = new EmbedBuilder()
-      .setTitle(`🏧 Conta Bancária — ${alvo.displayName}`)
-      .setColor(0x7B2FBE)
+      .setTitle(`🏧 Conta de ${alvo.displayName}`)
+      .setColor(0x2ecc71)
       .setThumbnail(alvo.displayAvatarURL())
       .addFields(
         {
           name: `${emojis.moedas} ${nomeMoeda.charAt(0).toUpperCase() + nomeMoeda.slice(1)}`,
-          value: `**${saldo}** ${nomeMoeda}`,
+          value: `**${saldo.toLocaleString("pt-BR")}** ${nomeMoeda}`,
           inline: true,
         },
         {
@@ -90,13 +97,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           inline: true,
         },
         {
-          name: "📚 Figurinhas únicas",
-          value: `**${totalUnicas}** desbloqueadas`,
+          name: "📚 Coleção",
+          value: `**${totalUnicas}**/${totalCatalogo} únicas\n\`${barra}\` ${pct}%`,
           inline: true,
         },
         {
-          name: `🛒 Pacotes (com desconto do nível)`,
-          value: pacotes,
+          name: `${emojis.pacote_standard} Pacotes (com desconto do nível)`,
+          value: linhasPrecos,
           inline: false,
         }
       )
