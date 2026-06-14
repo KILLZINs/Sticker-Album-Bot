@@ -122,6 +122,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             value:
               `\`/criar-figurinha\` — Adiciona uma nova figurinha ao catálogo\n` +
               `\`/modificar-figurinha\` — Edita título, raridade, imagem, número ou descrição\n` +
+              `\`/recriar-figurinha\` — Substitui a imagem de uma figurinha (corrige URLs expiradas)\n` +
               `\`/desbloquear\` — Desbloqueia uma figurinha diretamente para um usuário\n` +
               `\`/apagar-figurinha\` — Remove uma figurinha do catálogo permanentemente`,
             inline: false,
