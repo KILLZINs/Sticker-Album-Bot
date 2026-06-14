@@ -24,6 +24,7 @@ import {
   type GuildMoedaConfig,
   type MoedaChave,
 } from "../lib/moeda-config.js";
+import { getGuildEmojis, type GuildEmojis } from "../lib/emoji-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("configurar-moedas")
@@ -60,7 +61,7 @@ function buildPanelEmbed(config: GuildMoedaConfig): EmbedBuilder {
     .setTimestamp();
 }
 
-function buildPanelComponents(): ActionRowBuilder<ButtonBuilder>[] {
+function buildPanelComponents(emojis: GuildEmojis): ActionRowBuilder<ButtonBuilder>[] {
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId("moeda_btn_nome_moeda")
@@ -79,15 +80,15 @@ function buildPanelComponents(): ActionRowBuilder<ButtonBuilder>[] {
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId("moeda_btn_preco_standard")
-      .setLabel("📦 Preço Standard")
+      .setLabel(`${emojis.pacote_standard} Preço Standard`)
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId("moeda_btn_preco_deluxe")
-      .setLabel("🎁 Preço Deluxe")
+      .setLabel(`${emojis.pacote_deluxe} Preço Deluxe`)
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId("moeda_btn_preco_ultimate")
-      .setLabel("⭐ Preço Ultimate")
+      .setLabel(`${emojis.pacote_ultimate} Preço Ultimate`)
       .setStyle(ButtonStyle.Secondary),
   );
 
@@ -105,10 +106,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply({ ephemeral: true });
 
   try {
-    const config = await getGuildMoedaConfig(interaction.guildId!);
+    const [config, emojis] = await Promise.all([
+      getGuildMoedaConfig(interaction.guildId!),
+      getGuildEmojis(interaction.guildId!),
+    ]);
     await interaction.editReply({
       embeds: [buildPanelEmbed(config)],
-      components: buildPanelComponents(),
+      components: buildPanelComponents(emojis),
     });
   } catch (err) {
     logger.error({ err }, "Erro ao abrir painel de moeda config");
@@ -176,14 +180,17 @@ export async function handleMoedaResetButton(interaction: ButtonInteraction): Pr
     try {
       await db.delete(moedaConfigTable).where(eq(moedaConfigTable.guildId, guildId));
       invalidateMoedaCache(guildId);
-      const config = await getGuildMoedaConfig(guildId);
+      const [config, emojis] = await Promise.all([
+        getGuildMoedaConfig(guildId),
+        getGuildEmojis(guildId),
+      ]);
 
       if (interaction.channel && messageId) {
         const msg = await interaction.channel.messages.fetch(messageId).catch(() => null);
         if (msg) {
           await msg.edit({
             embeds: [buildPanelEmbed(config)],
-            components: buildPanelComponents(),
+            components: buildPanelComponents(emojis),
           }).catch(() => {});
         }
       }
@@ -239,14 +246,17 @@ export async function handleMoedaModal(interaction: ModalSubmitInteraction): Pro
     }
 
     invalidateMoedaCache(guildId);
-    const config = await getGuildMoedaConfig(guildId);
+    const [config, emojis] = await Promise.all([
+      getGuildMoedaConfig(guildId),
+      getGuildEmojis(guildId),
+    ]);
 
     if (interaction.channel && messageId) {
       const msg = await interaction.channel.messages.fetch(messageId).catch(() => null);
       if (msg) {
         await msg.edit({
           embeds: [buildPanelEmbed(config)],
-          components: buildPanelComponents(),
+          components: buildPanelComponents(emojis),
         }).catch(() => {});
       }
     }
