@@ -115,7 +115,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       await db.insert(doacaoCooldownTable).values({ guildId, userId: remetenteId });
     }
 
-    // Verificar e anunciar conquistas do destinatário
     const novasConquistas = await verificarConquistas(guildId, destino.id, destino.username, {});
     if (novasConquistas.length > 0) {
       await anunciarConquistas(interaction.channelId!, destino.id, novasConquistas, interaction.client, guildId);
