@@ -1,4 +1,12 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from "discord.js";
+import {
+  SlashCommandBuilder,
+  ChatInputCommandInteraction,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ButtonInteraction,
+} from "discord.js";
 import { db } from "@workspace/db";
 import { catalogoFigurinhasTable, colecaoUsuarioTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -10,6 +18,80 @@ import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 
 const RARIDADE_PESO: Record<string, number> = { comum: 55, incomum: 25, rara: 12, "épica": 6, "lendária": 2 };
 const RARIDADE_CHANCE: Record<string, string> = { comum: "55%", incomum: "25%", rara: "12%", "épica": "6%", "lendária": "2%" };
+
+interface PackSession {
+  stickers: typeof catalogoFigurinhasTable.$inferSelect[];
+  page: number;
+  userId: string;
+  username: string;
+  packEmoji: string;
+  packNome: string;
+  novoSaldo: number;
+  nomeMoeda: string;
+  nivelNome: string;
+  emojis: Awaited<ReturnType<typeof getGuildEmojis>>;
+  expiresAt: number;
+}
+
+const sessions = new Map<string, PackSession>();
+
+function cleanExpiredSessions() {
+  const now = Date.now();
+  for (const [key, session] of sessions) {
+    if (session.expiresAt < now) sessions.delete(key);
+  }
+}
+
+function buildPackEmbed(
+  session: PackSession,
+  sessionKey: string,
+): { embed: EmbedBuilder; row: ActionRowBuilder<ButtonBuilder> } {
+  const { stickers, page, packEmoji, packNome, username, novoSaldo, nomeMoeda, nivelNome, emojis } = session;
+  const fig = stickers[page]!;
+  const total = stickers.length;
+  const emoji = getRaridadeEmoji(emojis, fig.raridade);
+  const chance = RARIDADE_CHANCE[fig.raridade] ?? "?";
+
+  const isFirst = page === 0;
+  const isLast = page === total - 1;
+
+  // custom IDs: "pacote_prev_{sessionKey}" and "pacote_next_{sessionKey}"
+  // sessionKey = "{userId}_{interactionId}" ≤ 20 + 1 + 20 = 41 chars — well under Discord's 100-char limit
+  const embed = new EmbedBuilder()
+    .setTitle(`${packEmoji} ${packNome} de ${username}`)
+    .setDescription(
+      `${emoji} **${fig.titulo}**\n` +
+      `Raridade: **${fig.raridade}** *(${chance})*`,
+    )
+    .setImage(fig.imageUrl)
+    .setColor(getRaridadeColor(fig.raridade))
+    .addFields(
+      { name: `${emojis.moedas} Saldo restante`, value: `${novoSaldo} ${nomeMoeda}`, inline: true },
+      { name: "🏆 Nível do álbum", value: nivelNome, inline: true },
+    )
+    .setFooter({ text: `Figurinha ${page + 1} de ${total}` })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`pacote_prev_${sessionKey}`)
+      .setLabel("◀ Anterior")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(isFirst),
+    new ButtonBuilder()
+      .setCustomId(`pacote_page_${sessionKey}`)
+      .setLabel(`${page + 1} / ${total}`)
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(true),
+    new ButtonBuilder()
+      .setCustomId(`pacote_next_${sessionKey}`)
+      .setLabel("▶ Próxima")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(isLast),
+  );
+
+  return { embed, row };
+}
 
 export const data = new SlashCommandBuilder()
   .setName("abrir-pacote")
@@ -62,27 +144,27 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const sorteadas = sortearComPeso(catalogo, pack.figurinhas);
     await db.insert(colecaoUsuarioTable).values(sorteadas.map((fig) => ({ guildId, userId, username, catalogoId: fig.id })));
 
-    const maisRara = sorteadas.reduce((melhor, atual) =>
-      (RARIDADE_PESO[atual.raridade] ?? 55) < (RARIDADE_PESO[melhor.raridade] ?? 55) ? atual : melhor, sorteadas[0]!);
+    cleanExpiredSessions();
 
-    const linhas = sorteadas.map((fig) => {
-      const emoji = getRaridadeEmoji(emojis, fig.raridade);
-      const chance = RARIDADE_CHANCE[fig.raridade] ?? "?";
-      return `${emoji} **${fig.titulo}** — ${fig.raridade} *(${chance})*`;
-    });
+    // session key: "{userId}_{interactionId}" — unique per pack opening
+    const sessionKey = `${userId}_${interaction.id}`;
+    const session: PackSession = {
+      stickers: sorteadas,
+      page: 0,
+      userId,
+      username,
+      packEmoji,
+      packNome: pack.nome,
+      novoSaldo,
+      nomeMoeda,
+      nivelNome,
+      emojis,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    };
+    sessions.set(sessionKey, session);
 
-    const embed = new EmbedBuilder()
-      .setTitle(`${packEmoji} Pacote ${pack.nome} de ${username} aberto!`)
-      .setDescription(`Você ganhou **${sorteadas.length} figurinha${sorteadas.length > 1 ? "s" : ""}**!\n\n${linhas.join("\n")}`)
-      .setImage(maisRara.imageUrl)
-      .setColor(getRaridadeColor(maisRara.raridade))
-      .addFields(
-        { name: `${emojis.moedas} Saldo restante`, value: `${novoSaldo} ${nomeMoeda}`, inline: true },
-        { name: "🏆 Nível do álbum", value: nivelNome, inline: true }
-      )
-      .setTimestamp();
-
-    await interaction.editReply({ embeds: [embed] });
+    const { embed, row } = buildPackEmbed(session, sessionKey);
+    await interaction.editReply({ embeds: [embed], components: [row] });
 
     const novas = await verificarConquistas(guildId, userId, username, {
       abreuPacote: true,
@@ -93,6 +175,36 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     logger.error({ err }, "Erro ao abrir pacote");
     await interaction.editReply("❌ Erro ao abrir o pacotinho. Tente novamente.");
   }
+}
+
+export async function handlePackNavigation(interaction: ButtonInteraction) {
+  const customId = interaction.customId;
+  const isNext = customId.startsWith("pacote_next_");
+  const isPrev = customId.startsWith("pacote_prev_");
+  if (!isNext && !isPrev) return;
+
+  // Extract sessionKey from customId: "pacote_next_{sessionKey}" or "pacote_prev_{sessionKey}"
+  const sessionKey = isNext
+    ? customId.slice("pacote_next_".length)
+    : customId.slice("pacote_prev_".length);
+
+  const session = sessions.get(sessionKey);
+  if (!session) {
+    await interaction.reply({ content: "⏰ Esta sessão expirou. Use **/abrir-pacote** para abrir um novo pacote!", ephemeral: true });
+    return;
+  }
+
+  if (session.userId !== interaction.user.id) {
+    await interaction.reply({ content: "❌ Só quem abriu o pacote pode navegar pelas figurinhas!", ephemeral: true });
+    return;
+  }
+
+  const newPage = isNext ? session.page + 1 : session.page - 1;
+  session.page = Math.max(0, Math.min(newPage, session.stickers.length - 1));
+  session.expiresAt = Date.now() + 10 * 60 * 1000;
+
+  const { embed, row } = buildPackEmbed(session, sessionKey);
+  await interaction.update({ embeds: [embed], components: [row] });
 }
 
 function sortearComPeso(figurinhas: typeof catalogoFigurinhasTable.$inferSelect[], quantidade: number): typeof catalogoFigurinhasTable.$inferSelect[] {
@@ -110,6 +222,10 @@ function sortearComPeso(figurinhas: typeof catalogoFigurinhasTable.$inferSelect[
 
 function getRaridadeColor(raridade: string): number {
   switch (raridade) {
-    case "incomum": return 0x57f287; case "rara": return 0x5865f2; case "épica": return 0x470f78; case "lendária": return 0xf1c40f; default: return 0x99aab5;
+    case "incomum": return 0x57f287;
+    case "rara": return 0x5865f2;
+    case "épica": return 0x470f78;
+    case "lendária": return 0xf1c40f;
+    default: return 0x99aab5;
   }
 }
