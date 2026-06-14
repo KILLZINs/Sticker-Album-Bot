@@ -131,6 +131,12 @@ export async function startBot() {
       return;
     }
 
+    // ── Abrir Pacote: navegação prev/next ──
+    if (interaction.isButton() && (interaction.customId.startsWith("pacote_nav_prev_") || interaction.customId.startsWith("pacote_nav_next_"))) {
+      await abrirPacote.handlePackNavigation(interaction).catch((err) => logger.error({ err }, "Erro nav pacote"));
+      return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     const command = commandMap.get(interaction.commandName);
