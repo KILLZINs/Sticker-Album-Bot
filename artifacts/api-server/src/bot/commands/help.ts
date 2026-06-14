@@ -63,7 +63,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
               `\`/abrir-pacote Standard\` — 3 figurinhas • **${ps} ${nome}**\n` +
               `\`/abrir-pacote Deluxe\` — 5 figurinhas • **${pd} ${nome}**\n` +
               `\`/abrir-pacote Ultimate\` — 10 figurinhas • **${pu} ${nome}**\n` +
-              `  • Use **◀ Anterior** e **▶ Próxima** para ver cada figurinha com sua imagem\n\n` +
+              `  • Use **◀ Anterior** e **▶ Próxima** para navegar · **📋 Resumo** para ver todas de uma vez\n\n` +
               `**Chances:** ${emojis.raridade_comum} Comum 55% · ${emojis.raridade_incomum} Incomum 25% · ${emojis.raridade_rara} Rara 12% · ${emojis.raridade_epica} Épica 6% · ${emojis.raridade_lendaria} Lendária 2%`,
             inline: false,
           },
