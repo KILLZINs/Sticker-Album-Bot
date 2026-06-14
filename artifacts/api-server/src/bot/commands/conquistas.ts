@@ -8,6 +8,7 @@ import { conquistasUsuarioTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { CONQUISTAS } from "../lib/conquistas.js";
 import { logger } from "../lib/logger.js";
+import { getGuildEmojis, getConquistaEmoji } from "../lib/emoji-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("conquistas")
@@ -24,31 +25,32 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const isSelf = alvoUser.id === interaction.user.id;
 
   try {
-    const desbloqueadas = await db
-      .select()
-      .from(conquistasUsuarioTable)
-      .where(
-        and(
-          eq(conquistasUsuarioTable.guildId, guildId),
-          eq(conquistasUsuarioTable.userId, alvoUser.id)
+    const [emojis, desbloqueadas] = await Promise.all([
+      getGuildEmojis(guildId),
+      db
+        .select()
+        .from(conquistasUsuarioTable)
+        .where(
+          and(
+            eq(conquistasUsuarioTable.guildId, guildId),
+            eq(conquistasUsuarioTable.userId, alvoUser.id)
+          )
         )
-      )
-      .orderBy(conquistasUsuarioTable.ganhoEm);
+        .orderBy(conquistasUsuarioTable.ganhoEm),
+    ]);
 
-    // Filtrar apenas conquistas reais (ignorar contadores internos tipo troca_realizada_*)
     const conquistasReais = desbloqueadas.filter((c) => CONQUISTAS[c.conquistaId]);
 
     const totalPossiveis = Object.keys(CONQUISTAS).length;
     const totalDesbloqueadas = conquistasReais.length;
 
-    // Montar linhas de desbloqueadas
     const linhasDesbloqueadas = conquistasReais.map((c) => {
       const info = CONQUISTAS[c.conquistaId]!;
+      const emoji = getConquistaEmoji(emojis, c.conquistaId);
       const data = c.ganhoEm.toLocaleDateString("pt-BR");
-      return `${info.emoji} **${info.nome}** — *${info.descricao}* (${data})`;
+      return `${emoji} **${info.nome}** — *${info.descricao}* (${data})`;
     });
 
-    // Montar linhas de bloqueadas
     const idsDesbloqueados = new Set(conquistasReais.map((c) => c.conquistaId));
     const bloqueadas = Object.values(CONQUISTAS).filter((c) => !idsDesbloqueados.has(c.id));
     const linhasBloqueadas = bloqueadas.map((c) => `🔒 ~~${c.nome}~~`);
