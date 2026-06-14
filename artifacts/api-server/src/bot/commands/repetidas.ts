@@ -83,7 +83,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         linhas.slice(0, 40).join("\n") +
         (linhas.length > 40 ? `\n...e mais ${linhas.length - 40}` : "")
       )
-      .setFooter({ text: "Troque suas repetidas com /propor-troca ou doe com /dar-figurinha!" })
+      .setFooter({ text: "Troque suas repetidas com /trocar ou doe com /dar-figurinha!" })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
