@@ -105,9 +105,12 @@ export async function startBot() {
         interaction.customId.startsWith("pacote_next_") ||
         interaction.customId.startsWith("pacote_resumo_"))
     ) {
-      await abrirPacote.handlePackNavigation(interaction).catch((err) =>
-        logger.error({ err }, "Erro nav pacote")
-      );
+      await abrirPacote.handlePackNavigation(interaction).catch(async (err) => {
+        logger.error({ err }, "Erro nav pacote");
+        await interaction
+          .reply({ content: "❌ Ocorreu um erro ao processar o botão. Tente novamente.", ephemeral: true })
+          .catch(() => {});
+      });
       return;
     }
 
