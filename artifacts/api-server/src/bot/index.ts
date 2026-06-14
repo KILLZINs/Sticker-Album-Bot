@@ -36,6 +36,7 @@ import * as modificarFigurinha from "./commands/modificar-figurinha.js";
 import * as biografia from "./commands/biografia.js";
 import * as comparar from "./commands/comparar.js";
 import * as stats from "./commands/stats.js";
+import * as recriarFigurinha from "./commands/recriar-figurinha.js";
 
 interface Command {
   data: SlashCommandOptionsOnlyBuilder;
@@ -47,7 +48,7 @@ const allCommands: Command[] = [
   ranking, trocar, conquistas, rebirth, removerFigurinha, apagarFigurinha,
   help, saldo, darMoedas, atm, forceReset, repetidas, darFigurinha,
   configurarEmojis, configurarMoedas, configurarFigurinhas, modificarFigurinha,
-  biografia, comparar, stats,
+  biografia, comparar, stats, recriarFigurinha,
 ];
 
 const commandMap = new Collection<string, Command>();
