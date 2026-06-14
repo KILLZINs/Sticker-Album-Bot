@@ -12,6 +12,7 @@ import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and, ilike } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { getGuildEmojis, getRaridadeEmoji, type GuildEmojis } from "../lib/emoji-config.js";
+import { refreshAttachmentUrls, applyRefresh } from "../lib/refresh-attachments.js";
 
 export const data = new SlashCommandBuilder()
   .setName("ver-album")
@@ -79,7 +80,17 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       }
     }
 
-    const figurinhas = Array.from(uniqueMap.values());
+    let figurinhas = Array.from(uniqueMap.values());
+
+    // Renova URLs expiradas da CDN do Discord automaticamente
+    const allImageUrls = figurinhas.map((f) => f.fig.imageUrl).filter(Boolean) as string[];
+    const refreshMap = await refreshAttachmentUrls(interaction.client, allImageUrls);
+    if (refreshMap.size > 0) {
+      figurinhas = figurinhas.map((entry) => ({
+        ...entry,
+        fig: { ...entry.fig, imageUrl: applyRefresh(entry.fig.imageUrl, refreshMap) },
+      }));
+    }
 
     if (figurinhas.length === 0) {
       await interaction.editReply(
