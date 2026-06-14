@@ -63,6 +63,7 @@ function buildPackEmbed(
       `${emoji} **${fig.titulo}**\n` +
       `Raridade: **${fig.raridade}** *(${chance})*`,
     )
+    .setImage(fig.imageUrl ?? null)
     .setColor(getRaridadeColor(fig.raridade))
     .addFields(
       { name: `${emojis.moedas} Saldo restante`, value: `${novoSaldo} ${nomeMoeda}`, inline: true },
@@ -70,8 +71,6 @@ function buildPackEmbed(
     )
     .setFooter({ text: `Figurinha ${page + 1} de ${total}` })
     .setTimestamp();
-
-  if (fig.imageUrl) embed.setImage(fig.imageUrl);
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
