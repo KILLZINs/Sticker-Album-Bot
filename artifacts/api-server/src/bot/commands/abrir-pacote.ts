@@ -56,8 +56,6 @@ function buildPackEmbed(
   const isFirst = page === 0;
   const isLast = page === total - 1;
 
-  // custom IDs: "pacote_prev_{sessionKey}" and "pacote_next_{sessionKey}"
-  // sessionKey = "{userId}_{interactionId}" ≤ 20 + 1 + 20 = 41 chars — well under Discord's 100-char limit
   const imageUrl = fig.imageUrl || null;
 
   const embed = new EmbedBuilder()
@@ -91,6 +89,67 @@ function buildPackEmbed(
       .setLabel("▶ Próxima")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(isLast),
+    new ButtonBuilder()
+      .setCustomId(`pacote_resumo_${sessionKey}`)
+      .setLabel("📋 Resumo")
+      .setStyle(ButtonStyle.Success),
+  );
+
+  return { embed, row };
+}
+
+function buildResumoEmbed(
+  session: PackSession,
+  sessionKey: string,
+): { embed: EmbedBuilder; row: ActionRowBuilder<ButtonBuilder> } {
+  const { stickers, packEmoji, packNome, username, novoSaldo, nomeMoeda, nivelNome, emojis } = session;
+
+  const linhas = stickers.map((fig, i) => {
+    const emoji = getRaridadeEmoji(emojis, fig.raridade);
+    return `**${i + 1}.** ${emoji} **${fig.titulo}** — ${fig.raridade}`;
+  });
+
+  const contagem: Record<string, number> = {};
+  for (const fig of stickers) {
+    contagem[fig.raridade] = (contagem[fig.raridade] ?? 0) + 1;
+  }
+  const contagemTexto = Object.entries(contagem)
+    .map(([r, n]) => `${getRaridadeEmoji(emojis, r)} ${r}: **${n}**`)
+    .join("  •  ");
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${packEmoji} Resumo do ${packNome} de ${username}`)
+    .setDescription(linhas.join("\n"))
+    .setColor(0x5865f2)
+    .addFields(
+      { name: "📊 Por raridade", value: contagemTexto, inline: false },
+      { name: `${emojis.moedas} Saldo restante`, value: `${novoSaldo} ${nomeMoeda}`, inline: true },
+      { name: "🏆 Nível do álbum", value: nivelNome, inline: true },
+    )
+    .setFooter({ text: `${stickers.length} figurinha${stickers.length > 1 ? "s" : ""} no total` })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`pacote_prev_${sessionKey}`)
+      .setLabel("◀ Anterior")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true),
+    new ButtonBuilder()
+      .setCustomId(`pacote_page_${sessionKey}`)
+      .setLabel(`— / ${stickers.length}`)
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(true),
+    new ButtonBuilder()
+      .setCustomId(`pacote_next_${sessionKey}`)
+      .setLabel("▶ Próxima")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true),
+    new ButtonBuilder()
+      .setCustomId(`pacote_resumo_${sessionKey}`)
+      .setLabel("📋 Resumo")
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(true),
   );
 
   return { embed, row };
@@ -147,7 +206,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const sorteadas = sortearComPeso(catalogo, pack.figurinhas);
     await db.insert(colecaoUsuarioTable).values(sorteadas.map((fig) => ({ guildId, userId, username, catalogoId: fig.id })));
 
-    // Renova URLs expiradas da CDN do Discord antes de montar a sessão
     const refreshMap = await refreshAttachmentUrls(
       interaction.client,
       sorteadas.map((s) => s.imageUrl).filter(Boolean) as string[],
@@ -158,7 +216,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     cleanExpiredSessions();
 
-    // session key: "{userId}_{interactionId}" — unique per pack opening
     const sessionKey = `${userId}_${interaction.id}`;
     const session: PackSession = {
       stickers,
@@ -193,12 +250,15 @@ export async function handlePackNavigation(interaction: ButtonInteraction) {
   const customId = interaction.customId;
   const isNext = customId.startsWith("pacote_next_");
   const isPrev = customId.startsWith("pacote_prev_");
-  if (!isNext && !isPrev) return;
+  const isResumo = customId.startsWith("pacote_resumo_");
 
-  // Extract sessionKey from customId: "pacote_next_{sessionKey}" or "pacote_prev_{sessionKey}"
+  if (!isNext && !isPrev && !isResumo) return;
+
   const sessionKey = isNext
     ? customId.slice("pacote_next_".length)
-    : customId.slice("pacote_prev_".length);
+    : isPrev
+      ? customId.slice("pacote_prev_".length)
+      : customId.slice("pacote_resumo_".length);
 
   const session = sessions.get(sessionKey);
   if (!session) {
@@ -211,9 +271,16 @@ export async function handlePackNavigation(interaction: ButtonInteraction) {
     return;
   }
 
+  session.expiresAt = Date.now() + 10 * 60 * 1000;
+
+  if (isResumo) {
+    const { embed, row } = buildResumoEmbed(session, sessionKey);
+    await interaction.update({ embeds: [embed], components: [row] });
+    return;
+  }
+
   const newPage = isNext ? session.page + 1 : session.page - 1;
   session.page = Math.max(0, Math.min(newPage, session.stickers.length - 1));
-  session.expiresAt = Date.now() + 10 * 60 * 1000;
 
   const { embed, row } = buildPackEmbed(session, sessionKey);
   await interaction.update({ embeds: [embed], components: [row] });
