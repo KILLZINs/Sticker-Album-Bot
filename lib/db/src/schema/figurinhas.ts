@@ -94,6 +94,39 @@ export const albumsTable = pgTable("albums", {
   atualizadoEm: timestamp("atualizado_em").notNull().defaultNow(),
 });
 
+export const emojiConfigTable = pgTable(
+  "emoji_config",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    chave: text("chave").notNull(),
+    emoji: text("emoji").notNull(),
+  },
+  (t) => [unique("emoji_config_unique").on(t.guildId, t.chave)]
+);
+
+export const moedaConfigTable = pgTable(
+  "moeda_config",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    chave: text("chave").notNull(),
+    valor: text("valor").notNull(),
+  },
+  (t) => [unique("moeda_config_unique").on(t.guildId, t.chave)]
+);
+
+export const figurinhaConfigTable = pgTable(
+  "figurinha_config",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    chave: text("chave").notNull(),
+    valor: text("valor").notNull(),
+  },
+  (t) => [unique("figurinha_config_unique").on(t.guildId, t.chave)]
+);
+
 export const insertCatalogoSchema = createInsertSchema(catalogoFigurinhasTable).omit({ id: true, criadoEm: true });
 export const insertColecaoSchema = createInsertSchema(colecaoUsuarioTable).omit({ id: true, desbloqueadoEm: true });
 export const insertFigurinhaSchema = createInsertSchema(figurinhasTable).omit({ id: true, criadoEm: true });
@@ -107,39 +140,6 @@ export type InsertFigurinha = z.infer<typeof insertFigurinhaSchema>;
 export type Figurinha = typeof figurinhasTable.$inferSelect;
 export type InsertAlbum = z.infer<typeof insertAlbumSchema>;
 export type Album = typeof albumsTable.$inferSelect;
-
-export const emojiConfigTable = pgTable(
-  "emoji_config",
-  {
-    id: serial("id").primaryKey(),
-    guildId: text("guild_id").notNull(),
-    chave: text("chave").notNull(),
-    emoji: text("emoji").notNull(),
-  },
-  (t) => [unique("emoji_config_unique").on(t.guildId, t.chave)]
-);
 export type EmojiConfig = typeof emojiConfigTable.$inferSelect;
-
-export const moedaConfigTable = pgTable(
-  "moeda_config",
-  {
-    id: serial("id").primaryKey(),
-    guildId: text("guild_id").notNull(),
-    chave: text("chave").notNull(),
-    valor: text("valor").notNull(),
-  },
-  (t) => [unique("moeda_config_unique").on(t.guildId, t.chave)]
-);
 export type MoedaConfig = typeof moedaConfigTable.$inferSelect;
-
-export const figurinhaConfigTable = pgTable(
-  "figurinha_config",
-  {
-    id: serial("id").primaryKey(),
-    guildId: text("guild_id").notNull(),
-    chave: text("chave").notNull(),
-    valor: text("valor").notNull(),
-  },
-  (t) => [unique("figurinha_config_unique").on(t.guildId, t.chave)]
-);
 export type FigurinhaConfig = typeof figurinhaConfigTable.$inferSelect;
