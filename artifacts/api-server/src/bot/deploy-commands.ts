@@ -26,7 +26,6 @@ import * as modificarFigurinha from "./commands/modificar-figurinha.js";
 import * as biografia from "./commands/biografia.js";
 import * as comparar from "./commands/comparar.js";
 import * as stats from "./commands/stats.js";
-import * as recriarFigurinha from "./commands/recriar-figurinha.js";
 
 const commands = [
   criarFigurinha.data,
@@ -55,7 +54,6 @@ const commands = [
   biografia.data,
   comparar.data,
   stats.data,
-  recriarFigurinha.data,
 ].map((cmd) => cmd.toJSON());
 
 export async function deployCommands() {
