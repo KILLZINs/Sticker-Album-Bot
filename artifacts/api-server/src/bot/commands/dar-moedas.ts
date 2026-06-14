@@ -46,27 +46,30 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       getGuildMoedaConfig(guildId),
     ]);
 
-    await addMoedas(guildId, alvo.id, alvo.username, quantidade);
-    const novoSaldo = await getSaldo(guildId, alvo.id);
     const nomeMoeda = moedaCfg.nomeMoeda;
 
+    await addMoedas(guildId, alvo.id, alvo.username, quantidade);
+    const novoSaldo = await getSaldo(guildId, alvo.id);
+
     const embed = new EmbedBuilder()
-      .setTitle(`${emojis.moedas} ${nomeMoeda.charAt(0).toUpperCase() + nomeMoeda.slice(1)} enviadas!`)
+      .setTitle(`${emojis.moedas} ${nomeMoeda.charAt(0).toUpperCase() + nomeMoeda.slice(1)} Enviadas!`)
       .setDescription(
-        `**<@${alvo.id}>** recebeu **${quantidade} ${nomeMoeda}** de <@${interaction.user.id}>!`
+        `<@${alvo.id}> recebeu **${quantidade.toLocaleString("pt-BR")} ${nomeMoeda}** de <@${interaction.user.id}>!`
       )
       .addFields(
-        { name: "💸 Enviado", value: `+${quantidade}`, inline: true },
-        { name: `${emojis.moedas} Novo saldo`, value: `${novoSaldo} ${nomeMoeda}`, inline: true }
+        { name: "💸 Quantidade enviada", value: `+**${quantidade.toLocaleString("pt-BR")}**`, inline: true },
+        { name: `${emojis.moedas} Novo saldo`, value: `**${novoSaldo.toLocaleString("pt-BR")}** ${nomeMoeda}`, inline: true }
       )
-      .setColor(0x470f78)
+      .setColor(0xf39c12)
       .setThumbnail(alvo.displayAvatarURL())
+      .setFooter({ text: `Admin: ${interaction.user.username}` })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
 
     await interaction.followUp({
-      content: `${emojis.moedas} <@${alvo.id}> recebeu **${quantidade} ${nomeMoeda}** de <@${interaction.user.id}>!`,
+      ephemeral: false,
+      content: `${emojis.moedas} <@${alvo.id}> recebeu **${quantidade.toLocaleString("pt-BR")} ${nomeMoeda}** de <@${interaction.user.id}>!`,
     });
   } catch (err) {
     const mensagemErro = err instanceof Error ? err.message : String(err);
