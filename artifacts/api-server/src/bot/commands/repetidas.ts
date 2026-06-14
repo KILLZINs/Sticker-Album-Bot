@@ -9,9 +9,11 @@ import { eq, and, gt, count } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
 
+const RARIDADE_ORDEM = ["lendária", "épica", "rara", "incomum", "comum"];
+
 export const data = new SlashCommandBuilder()
   .setName("repetidas")
-  .setDescription("Mostra suas figurinhas repetidas (cópias extras)")
+  .setDescription("Mostra suas figurinhas repetidas (cópias extras disponíveis para troca/doação)")
   .addUserOption((opt) =>
     opt
       .setName("usuario")
@@ -25,6 +27,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const alvoUser = interaction.options.getUser("usuario") ?? interaction.user;
   const guildId = interaction.guildId!;
   const userId = alvoUser.id;
+  const isSelf = alvoUser.id === interaction.user.id;
 
   try {
     const emojis = await getGuildEmojis(guildId);
@@ -59,31 +62,41 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     if (repetidas.length === 0) {
       await interaction.editReply(
-        `✅ ${alvoUser.id === interaction.user.id ? "Você não tem" : `<@${userId}> não tem`} nenhuma figurinha repetida!`
+        `♻️ ${isSelf ? "Você não tem" : `<@${userId}> não tem`} nenhuma figurinha repetida!\n\n` +
+        `Abra mais pacotinhos para conseguir cópias extras.`
       );
       return;
     }
 
-    const linhas = repetidas.map((fig) => {
+    // Ordenar por raridade (melhores primeiro)
+    const sorted = [...repetidas].sort(
+      (a, b) => RARIDADE_ORDEM.indexOf(a.raridade) - RARIDADE_ORDEM.indexOf(b.raridade),
+    );
+
+    const linhas = sorted.map((fig) => {
       const emoji = getRaridadeEmoji(emojis, fig.raridade);
       const extras = fig.copias - 1;
-      return `${emoji} **#${fig.numero}** ${fig.titulo} *(+${extras} extra${extras > 1 ? "s" : ""})*`;
+      return `${emoji} **#${fig.numero}** ${fig.titulo} — *(+${extras} cópia${extras > 1 ? "s" : ""} extra${extras > 1 ? "s" : ""})*`;
     });
 
     const totalExtras = repetidas.reduce((acc, f) => acc + (f.copias - 1), 0);
+    const contagem: Record<string, number> = {};
+    for (const f of repetidas) contagem[f.raridade] = (contagem[f.raridade] ?? 0) + 1;
+    const resumo = RARIDADE_ORDEM.filter((r) => contagem[r])
+      .map((r) => `${getRaridadeEmoji(emojis, r)} **${contagem[r]}**`)
+      .join("  ·  ");
 
     const embed = new EmbedBuilder()
-      .setTitle(`♻️ Figurinhas repetidas de ${alvoUser.username}`)
+      .setTitle(`♻️ Figurinhas repetidas — ${alvoUser.username}`)
       .setColor(0x7B2FBE)
       .setThumbnail(alvoUser.displayAvatarURL())
       .setDescription(
-        `**${repetidas.length} figurinha${repetidas.length > 1 ? "s" : ""} com cópias extras** ` +
-        `(${totalExtras} extra${totalExtras > 1 ? "s" : ""} no total)\n\n` +
-        `Use **/dar-figurinha** para passar cópias extras a outros!\n\n` +
+        `**${repetidas.length} figurinha${repetidas.length > 1 ? "s" : ""}** com extras · **${totalExtras} cópia${totalExtras > 1 ? "s" : ""}** disponíveis\n` +
+        `${resumo}\n\n` +
         linhas.slice(0, 40).join("\n") +
-        (linhas.length > 40 ? `\n...e mais ${linhas.length - 40}` : "")
+        (linhas.length > 40 ? `\n*...e mais ${linhas.length - 40} figurinhas*` : ""),
       )
-      .setFooter({ text: "Troque suas repetidas com /trocar ou doe com /dar-figurinha!" })
+      .setFooter({ text: "Use /trocar para trocar com outros · /dar-figurinha para doar de graça" })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
