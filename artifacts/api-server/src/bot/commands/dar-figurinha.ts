@@ -14,7 +14,7 @@ import { getGuildFigurinhaConfig } from "../lib/figurinha-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("dar-figurinha")
-  .setDescription("Dá uma cópia repetida de uma figurinha sua para outro usuário")
+  .setDescription("Doa uma cópia repetida de uma figurinha para outro usuário")
   .addUserOption((opt) =>
     opt.setName("usuario").setDescription("Para quem você quer dar a figurinha").setRequired(true)
   )
@@ -51,14 +51,17 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const nivelRemetente = await getNivelRebirth(guildId, remetenteId);
       if (nivelRemetente > nivelMaximo) {
         await interaction.editReply(
-          `❌ **Doações bloqueadas para o seu nível.**\n\nSeu nível: **${getNivelDisplay(emojis, nivelRemetente)}**\nMáximo permitido: **${getNivelDisplay(emojis, nivelMaximo)}**`
+          `❌ **Doações bloqueadas para o seu nível.**\n\n` +
+          `Seu nível: **${getNivelDisplay(emojis, nivelRemetente)}**\n` +
+          `Máximo permitido: **${getNivelDisplay(emojis, nivelMaximo)}**`
         );
         return;
       }
       const nivelDestino = await getNivelRebirth(guildId, destino.id);
       if (nivelDestino > nivelMaximo) {
         await interaction.editReply(
-          `❌ **<@${destino.id}> não pode receber doações.**\nNível dele: **${getNivelDisplay(emojis, nivelDestino)}** · Máximo: **${getNivelDisplay(emojis, nivelMaximo)}**`
+          `❌ **<@${destino.id}> não pode receber doações pelo nível.**\n\n` +
+          `Nível: **${getNivelDisplay(emojis, nivelDestino)}** · Máximo: **${getNivelDisplay(emojis, nivelMaximo)}**`
         );
         return;
       }
@@ -76,8 +79,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         const restante = cooldownHoras - horasPassadas;
         const horas = Math.floor(restante);
         const minutos = Math.floor((restante - horas) * 60);
-        const cooldownTxt = cooldownHoras % 24 === 0 ? `${cooldownHoras / 24} dias` : `${cooldownHoras}h`;
-        await interaction.editReply(`⏳ **Cooldown de doação ativo!**\n\nPode doar novamente em **${horas}h ${minutos}min**.\n*(Limite: 1 doação a cada ${cooldownTxt})*`);
+        const cooldownTxt = cooldownHoras % 24 === 0 ? `${cooldownHoras / 24} dia${cooldownHoras / 24 !== 1 ? "s" : ""}` : `${cooldownHoras}h`;
+        await interaction.editReply(
+          `⏳ **Cooldown de doação ativo!**\n\n` +
+          `Você pode doar novamente em **${horas}h ${minutos}min**.\n` +
+          `*(Limite: 1 doação a cada ${cooldownTxt})*`
+        );
         return;
       }
     }
@@ -93,8 +100,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     if (totalCopias < 2) {
       await interaction.editReply(
         totalCopias === 0
-          ? `❌ Você não tem a figurinha **#${numero} ${catalogoEntry.titulo}** na sua coleção!`
-          : `❌ Você só tem **1 cópia** de **#${numero} ${catalogoEntry.titulo}**.\nSó é possível doar figurinhas repetidas (2+ cópias). Use **/repetidas** para ver as suas.`
+          ? `❌ Você não tem a figurinha **#${numero} — ${catalogoEntry.titulo}** na sua coleção!`
+          : `❌ Você só tem **1 cópia** de **#${numero} — ${catalogoEntry.titulo}**.\nSó é possível doar figurinhas com 2+ cópias. Use **/repetidas** para ver as suas.`
       );
       return;
     }
@@ -105,7 +112,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     await db.delete(colecaoUsuarioTable).where(eq(colecaoUsuarioTable.id, primeiraCopia!.id));
     await db.insert(colecaoUsuarioTable).values({ guildId, userId: destino.id, username: destino.username, catalogoId: catalogoEntry.id });
 
-    // Atualizar cooldown
     const [cooldownExistente] = await db.select({ id: doacaoCooldownTable.id }).from(doacaoCooldownTable)
       .where(and(eq(doacaoCooldownTable.guildId, guildId), eq(doacaoCooldownTable.userId, remetenteId))).limit(1);
     if (cooldownExistente) {
@@ -122,19 +128,26 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const emoji = getRaridadeEmoji(emojis, catalogoEntry.raridade);
     const copiasRestantes = totalCopias - 1;
-    const cooldownTxt = cooldownHoras % 24 === 0 ? `${cooldownHoras / 24} dias` : `${cooldownHoras}h`;
+    const cooldownTxt = cooldownHoras % 24 === 0 ? `${cooldownHoras / 24} dia${cooldownHoras / 24 !== 1 ? "s" : ""}` : `${cooldownHoras}h`;
+    const raridadeTitle = catalogoEntry.raridade.charAt(0).toUpperCase() + catalogoEntry.raridade.slice(1);
 
     const embed = new EmbedBuilder()
-      .setTitle("🎁 Figurinha doada!")
-      .setDescription(`<@${remetenteId}> deu a figurinha **${emoji} ${catalogoEntry.titulo}** para <@${destino.id}>!`)
-      .setImage(catalogoEntry.imageUrl)
-      .setColor(0x9B59B6)
-      .addFields(
-        { name: "🎴 Figurinha", value: `#${catalogoEntry.numero} ${catalogoEntry.titulo}`, inline: true },
-        { name: "✨ Raridade", value: `${emoji} ${catalogoEntry.raridade}`, inline: true },
-        { name: "📋 Cópias restantes", value: `${copiasRestantes} cópia${copiasRestantes !== 1 ? "s" : ""}`, inline: true },
+      .setTitle(`🎁 Figurinha Doada com Sucesso!`)
+      .setDescription(
+        `${emoji} **${catalogoEntry.titulo}** foi para <@${destino.id}>!\n\n` +
+        `┣ Raridade: **${raridadeTitle}**\n` +
+        `┣ Catálogo: **#${catalogoEntry.numero}**\n` +
+        `┗ Cópias restantes com você: **${copiasRestantes}**`,
       )
-      .setFooter({ text: `De ${remetenteUsername} para ${destino.username} • Próxima doação em ${cooldownTxt}` })
+      .setImage(catalogoEntry.imageUrl)
+      .setColor(0x2ecc71)
+      .setThumbnail(destino.displayAvatarURL())
+      .addFields(
+        { name: "📤 De", value: `<@${remetenteId}>`, inline: true },
+        { name: "📥 Para", value: `<@${destino.id}>`, inline: true },
+        { name: "⏳ Próxima doação", value: `em ${cooldownTxt}`, inline: true },
+      )
+      .setFooter({ text: `${remetenteUsername} → ${destino.username}` })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
