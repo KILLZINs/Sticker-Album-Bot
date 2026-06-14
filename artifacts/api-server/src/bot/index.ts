@@ -9,6 +9,7 @@ import {
 import { logger } from "./lib/logger.js";
 import { deployCommands } from "./deploy-commands.js";
 import { addMoedas } from "./lib/moedas.js";
+import { getGuildMoedaConfig } from "./lib/moeda-config.js";
 import * as criarFigurinha from "./commands/criar-figurinha.js";
 import * as desbloquear from "./commands/desbloquear.js";
 import * as abrirPacote from "./commands/abrir-pacote.js";
@@ -16,7 +17,7 @@ import * as catalogo from "./commands/catalogo.js";
 import * as verAlbum from "./commands/ver-album.js";
 import * as figurinhas from "./commands/figurinhas.js";
 import * as ranking from "./commands/ranking.js";
-import * as proporTroca from "./commands/propor-troca.js";
+import * as trocar from "./commands/trocar.js";
 import * as conquistas from "./commands/conquistas.js";
 import * as rebirth from "./commands/rebirth.js";
 import * as removerFigurinha from "./commands/remover.js";
@@ -28,6 +29,14 @@ import * as atm from "./commands/atm.js";
 import * as forceReset from "./commands/forcereset.js";
 import * as repetidas from "./commands/repetidas.js";
 import * as darFigurinha from "./commands/dar-figurinha.js";
+import * as biografia from "./commands/biografia.js";
+import * as comparar from "./commands/comparar.js";
+import * as configurarEmojis from "./commands/configurar-emojis.js";
+import * as configurarFigurinhas from "./commands/configurar-figurinhas.js";
+import * as configurarMoedas from "./commands/configurar-moedas.js";
+import * as modificarFigurinha from "./commands/modificar-figurinha.js";
+import * as stats from "./commands/stats.js";
+import * as adicionar from "./commands/adicionar.js";
 
 interface Command {
   data: SlashCommandOptionsOnlyBuilder;
@@ -42,7 +51,7 @@ const allCommands: Command[] = [
   verAlbum,
   figurinhas,
   ranking,
-  proporTroca,
+  trocar,
   conquistas,
   rebirth,
   removerFigurinha,
@@ -54,6 +63,14 @@ const allCommands: Command[] = [
   forceReset,
   repetidas,
   darFigurinha,
+  biografia,
+  comparar,
+  configurarEmojis,
+  configurarFigurinhas,
+  configurarMoedas,
+  modificarFigurinha,
+  stats,
+  adicionar,
 ];
 
 const commandMap = new Collection<string, Command>();
@@ -85,13 +102,14 @@ export async function startBot() {
     logger.info({ tag: c.user.tag }, "🤖 Bot do Álbum de Figurinhas online!");
   });
 
-  // Listener de mensagens — +2 moedas por mensagem com 5 ou mais caracteres
+  // Listener de mensagens — moedas por mensagem (configurável por servidor)
   client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
     if (!message.guildId) return;
-    if (message.content.length < 5) return;
     try {
-      await addMoedas(message.guildId, message.author.id, message.author.username, 2);
+      const moedaCfg = await getGuildMoedaConfig(message.guildId);
+      if (message.content.length < moedaCfg.comprimentoMinMensagem) return;
+      await addMoedas(message.guildId, message.author.id, message.author.username, moedaCfg.moedasPorMensagem);
     } catch (err) {
       logger.warn({ err, userId: message.author.id }, "Falha ao adicionar moedas por mensagem");
     }
