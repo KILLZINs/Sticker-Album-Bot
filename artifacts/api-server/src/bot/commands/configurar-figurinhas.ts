@@ -25,13 +25,14 @@ import {
   type FigurinhaConfigChave,
 } from "../lib/figurinha-config.js";
 import { getGuildMoedaConfig } from "../lib/moeda-config.js";
+import { getGuildEmojis, getRaridadeEmoji, type GuildEmojis } from "../lib/emoji-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("configurar-figurinhas")
   .setDescription("[ADMIN] Configura as regras de transferência e trocas de figurinhas")
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-async function buildPanelEmbed(guildId: string, config: GuildFigurinhaConfig): Promise<EmbedBuilder> {
+async function buildPanelEmbed(guildId: string, config: GuildFigurinhaConfig, emojis: GuildEmojis): Promise<EmbedBuilder> {
   const moedaCfg = await getGuildMoedaConfig(guildId);
   const m = moedaCfg.nomeMoeda;
   const nivelTexto = config.nivelMaximoDoacao < 0
@@ -45,6 +46,12 @@ async function buildPanelEmbed(guildId: string, config: GuildFigurinhaConfig): P
   const horas = config.cooldownDoacaoHoras;
   const dias = horas % 24 === 0 ? `${horas / 24}d` : `${horas}h`;
 
+  const rC = getRaridadeEmoji(emojis, "comum");
+  const rI = getRaridadeEmoji(emojis, "incomum");
+  const rR = getRaridadeEmoji(emojis, "rara");
+  const rE = getRaridadeEmoji(emojis, "épica");
+  const rL = getRaridadeEmoji(emojis, "lendária");
+
   return new EmbedBuilder()
     .setTitle("⚙️ Configuração de Transferência de Figurinhas")
     .setColor(0x9B59B6)
@@ -54,11 +61,11 @@ async function buildPanelEmbed(guildId: string, config: GuildFigurinhaConfig): P
         value:
           `**Moedas em trocas:** ${config.trocaMoedasHabilitado ? "✅ Habilitado" : "❌ Desabilitado"}\n` +
           `**Máx. por raridade:**\n` +
-          `⚪ Comum: **${config.moedasMaxComum}** ${m}\n` +
-          `🟢 Incomum: **${config.moedasMaxIncomum}** ${m}\n` +
-          `🔵 Rara: **${config.moedasMaxRara}** ${m}\n` +
-          `🟣 Épica: **${config.moedasMaxEpica}** ${m}\n` +
-          `🌟 Lendária: **${config.moedasMaxLendaria}** ${m}`,
+          `${rC} Comum: **${config.moedasMaxComum}** ${m}\n` +
+          `${rI} Incomum: **${config.moedasMaxIncomum}** ${m}\n` +
+          `${rR} Rara: **${config.moedasMaxRara}** ${m}\n` +
+          `${rE} Épica: **${config.moedasMaxEpica}** ${m}\n` +
+          `${rL} Lendária: **${config.moedasMaxLendaria}** ${m}`,
         inline: true,
       },
       {
@@ -74,7 +81,13 @@ async function buildPanelEmbed(guildId: string, config: GuildFigurinhaConfig): P
     .setTimestamp();
 }
 
-function buildPanelComponents(): ActionRowBuilder<ButtonBuilder>[] {
+function buildPanelComponents(emojis: GuildEmojis): ActionRowBuilder<ButtonBuilder>[] {
+  const rC = getRaridadeEmoji(emojis, "comum");
+  const rI = getRaridadeEmoji(emojis, "incomum");
+  const rR = getRaridadeEmoji(emojis, "rara");
+  const rE = getRaridadeEmoji(emojis, "épica");
+  const rL = getRaridadeEmoji(emojis, "lendária");
+
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId("fig_btn_troca_moedas_habilitado").setLabel("💱 Moedas em trocas").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("fig_btn_cooldown_doacao_horas").setLabel("⏳ Cooldown de doação").setStyle(ButtonStyle.Secondary),
@@ -82,11 +95,11 @@ function buildPanelComponents(): ActionRowBuilder<ButtonBuilder>[] {
   );
 
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("fig_btn_moedas_max_comum").setLabel("⚪ Máx. Comum").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("fig_btn_moedas_max_incomum").setLabel("🟢 Máx. Incomum").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("fig_btn_moedas_max_rara").setLabel("🔵 Máx. Rara").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("fig_btn_moedas_max_epica").setLabel("🟣 Máx. Épica").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("fig_btn_moedas_max_lendaria").setLabel("🌟 Máx. Lendária").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("fig_btn_moedas_max_comum").setLabel(`${rC} Máx. Comum`).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("fig_btn_moedas_max_incomum").setLabel(`${rI} Máx. Incomum`).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("fig_btn_moedas_max_rara").setLabel(`${rR} Máx. Rara`).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("fig_btn_moedas_max_epica").setLabel(`${rE} Máx. Épica`).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("fig_btn_moedas_max_lendaria").setLabel(`${rL} Máx. Lendária`).setStyle(ButtonStyle.Secondary),
   );
 
   const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -99,10 +112,13 @@ function buildPanelComponents(): ActionRowBuilder<ButtonBuilder>[] {
 export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply({ ephemeral: true });
   try {
-    const config = await getGuildFigurinhaConfig(interaction.guildId!);
+    const [config, emojis] = await Promise.all([
+      getGuildFigurinhaConfig(interaction.guildId!),
+      getGuildEmojis(interaction.guildId!),
+    ]);
     await interaction.editReply({
-      embeds: [await buildPanelEmbed(interaction.guildId!, config)],
-      components: buildPanelComponents(),
+      embeds: [await buildPanelEmbed(interaction.guildId!, config, emojis)],
+      components: buildPanelComponents(emojis),
     });
   } catch (err) {
     logger.error({ err }, "Erro ao abrir painel de figurinha config");
@@ -160,9 +176,12 @@ export async function handleFigurinhaResetButton(interaction: ButtonInteraction)
     try {
       await db.delete(figurinhaConfigTable).where(eq(figurinhaConfigTable.guildId, guildId));
       invalidateFigurinhaCache(guildId);
-      const config = await getGuildFigurinhaConfig(guildId);
+      const [config, emojis] = await Promise.all([
+        getGuildFigurinhaConfig(guildId),
+        getGuildEmojis(guildId),
+      ]);
       const msg = await interaction.channel?.messages.fetch(msgId).catch(() => null);
-      if (msg) await msg.edit({ embeds: [await buildPanelEmbed(guildId, config)], components: buildPanelComponents() }).catch(() => {});
+      if (msg) await msg.edit({ embeds: [await buildPanelEmbed(guildId, config, emojis)], components: buildPanelComponents(emojis) }).catch(() => {});
       await interaction.update({ content: "✅ Configurações de figurinhas redefinidas ao padrão!", components: [] });
     } catch (err) {
       logger.error({ err }, "Erro ao redefinir figurinha config");
@@ -207,9 +226,12 @@ export async function handleFigurinhaModal(interaction: ModalSubmitInteraction):
     if (updated.length === 0) await db.insert(figurinhaConfigTable).values({ guildId, chave, valor: novoValor });
 
     invalidateFigurinhaCache(guildId);
-    const config = await getGuildFigurinhaConfig(guildId);
+    const [config, emojis] = await Promise.all([
+      getGuildFigurinhaConfig(guildId),
+      getGuildEmojis(guildId),
+    ]);
     const msg = await interaction.channel?.messages.fetch(msgId).catch(() => null);
-    if (msg) await msg.edit({ embeds: [await buildPanelEmbed(guildId, config)], components: buildPanelComponents() }).catch(() => {});
+    if (msg) await msg.edit({ embeds: [await buildPanelEmbed(guildId, config, emojis)], components: buildPanelComponents(emojis) }).catch(() => {});
 
     await interaction.reply({ content: `✅ **${nome}** atualizado para \`${novoValor}\`!`, ephemeral: true });
   } catch (err) {
