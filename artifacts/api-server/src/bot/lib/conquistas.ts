@@ -1,4 +1,5 @@
 import { Client, EmbedBuilder } from "discord.js";
+import { getGuildEmojis, getConquistaEmoji } from "./emoji-config.js";
 import { db } from "@workspace/db";
 import {
   conquistasUsuarioTable,
@@ -259,9 +260,12 @@ export async function anunciarConquistas(
     const channel = await client.channels.fetch(channelId);
     if (!channel?.isTextBased()) return;
 
+    const emojis = guildId ? await getGuildEmojis(guildId).catch(() => null) : null;
+
     for (const conquista of novas) {
+      const emoji = emojis ? getConquistaEmoji(emojis, conquista.id) : conquista.emoji;
       const embed = new EmbedBuilder()
-        .setTitle(`${conquista.emoji} Conquista desbloqueada!`)
+        .setTitle(`${emoji} Conquista desbloqueada!`)
         .setDescription(
           `<@${userId}> desbloqueou a conquista **${conquista.nome}**!\n*${conquista.descricao}*`
         )
