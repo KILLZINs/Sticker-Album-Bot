@@ -12,13 +12,14 @@ import { catalogoFigurinhasTable, colecaoUsuarioTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { verificarConquistas, anunciarConquistas } from "../lib/conquistas.js";
-import { getSaldo, deductMoedas, getNivelRebirth, PACKS, NIVEL_NOME, calcularPreco, type TipoPacote } from "../lib/moedas.js";
-import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
+import { getSaldo, deductMoedas, getNivelRebirth, PACKS, calcularPreco, type TipoPacote } from "../lib/moedas.js";
+import { getGuildEmojis, getRaridadeEmoji, getNivelDisplay } from "../lib/emoji-config.js";
 import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 import { refreshAttachmentUrls } from "../lib/refresh-attachments.js";
 
 const RARIDADE_PESO: Record<string, number> = { comum: 55, incomum: 25, rara: 12, "épica": 6, "lendária": 2 };
 const RARIDADE_CHANCE: Record<string, string> = { comum: "55%", incomum: "25%", rara: "12%", "épica": "6%", "lendária": "2%" };
+const RARIDADE_ORDEM = ["lendária", "épica", "rara", "incomum", "comum"];
 
 interface PackSession {
   stickers: typeof catalogoFigurinhasTable.$inferSelect[];
@@ -52,25 +53,32 @@ function buildPackEmbed(
   const total = stickers.length;
   const emoji = getRaridadeEmoji(emojis, fig.raridade);
   const chance = RARIDADE_CHANCE[fig.raridade] ?? "?";
-
   const isFirst = page === 0;
   const isLast = page === total - 1;
 
-  const imageUrl = fig.imageUrl || null;
+  const hype: Record<string, string> = {
+    lendária: "🌟 **LENDÁRIA! SORTE INCRÍVEL!** 🌟",
+    épica: "🟣 **ÉPICA! Que figurinha rara!** 🟣",
+    rara: "💙 **RARA! Boa sorte!**",
+  };
+  const hypeMsg = hype[fig.raridade];
+  const raridadeTitle = fig.raridade.charAt(0).toUpperCase() + fig.raridade.slice(1);
 
   const embed = new EmbedBuilder()
-    .setTitle(`${packEmoji} ${packNome} de ${username}`)
+    .setTitle(`${packEmoji} ${packNome}`)
     .setDescription(
+      (hypeMsg ? `${hypeMsg}\n\n` : "") +
       `${emoji} **${fig.titulo}**\n` +
-      `Raridade: **${fig.raridade}** *(${chance})*`,
+      `┣ Raridade: **${raridadeTitle}** *(${chance} de chance)*\n` +
+      `┗ Catálogo: **#${fig.numero}**`,
     )
-    .setImage(imageUrl)
+    .setImage(fig.imageUrl || null)
     .setColor(getRaridadeColor(fig.raridade))
     .addFields(
-      { name: `${emojis.moedas} Saldo restante`, value: `${novoSaldo} ${nomeMoeda}`, inline: true },
-      { name: "🏆 Nível do álbum", value: nivelNome, inline: true },
+      { name: `${emojis.moedas} Saldo restante`, value: `**${novoSaldo}** ${nomeMoeda}`, inline: true },
+      { name: "🏆 Nível", value: nivelNome, inline: true },
     )
-    .setFooter({ text: `Figurinha ${page + 1} de ${total}` })
+    .setFooter({ text: `${username} · Figurinha ${page + 1} de ${total} · 📋 Resumo para ver tudo` })
     .setTimestamp();
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -104,29 +112,36 @@ function buildResumoEmbed(
 ): { embed: EmbedBuilder; row: ActionRowBuilder<ButtonBuilder> } {
   const { stickers, packEmoji, packNome, username, novoSaldo, nomeMoeda, nivelNome, emojis } = session;
 
-  const linhas = stickers.map((fig, i) => {
-    const emoji = getRaridadeEmoji(emojis, fig.raridade);
-    return `**${i + 1}.** ${emoji} **${fig.titulo}** — ${fig.raridade}`;
+  // Ordenar por raridade (mais impressionante primeiro)
+  const sorted = [...stickers].sort(
+    (a, b) => RARIDADE_ORDEM.indexOf(a.raridade) - RARIDADE_ORDEM.indexOf(b.raridade),
+  );
+
+  const linhas = sorted.map((fig) => {
+    const e = getRaridadeEmoji(emojis, fig.raridade);
+    const originalIdx = stickers.indexOf(fig) + 1;
+    return `${e} **${fig.titulo}** — *#${fig.numero}* *(posição ${originalIdx})*`;
   });
 
   const contagem: Record<string, number> = {};
   for (const fig of stickers) {
     contagem[fig.raridade] = (contagem[fig.raridade] ?? 0) + 1;
   }
-  const contagemTexto = Object.entries(contagem)
-    .map(([r, n]) => `${getRaridadeEmoji(emojis, r)} ${r}: **${n}**`)
-    .join("  •  ");
+  const contagemTexto = RARIDADE_ORDEM
+    .filter((r) => contagem[r])
+    .map((r) => `${getRaridadeEmoji(emojis, r)} ${r}: **${contagem[r]}**`)
+    .join("  ·  ");
 
   const embed = new EmbedBuilder()
-    .setTitle(`${packEmoji} Resumo do ${packNome} de ${username}`)
+    .setTitle(`${packEmoji} Resumo — ${packNome} de ${username}`)
     .setDescription(linhas.join("\n"))
     .setColor(0x5865f2)
     .addFields(
-      { name: "📊 Por raridade", value: contagemTexto, inline: false },
-      { name: `${emojis.moedas} Saldo restante`, value: `${novoSaldo} ${nomeMoeda}`, inline: true },
-      { name: "🏆 Nível do álbum", value: nivelNome, inline: true },
+      { name: "📊 Distribuição por raridade", value: contagemTexto || "—", inline: false },
+      { name: `${emojis.moedas} Saldo restante`, value: `**${novoSaldo}** ${nomeMoeda}`, inline: true },
+      { name: "🏆 Nível", value: nivelNome, inline: true },
     )
-    .setFooter({ text: `${stickers.length} figurinha${stickers.length > 1 ? "s" : ""} no total` })
+    .setFooter({ text: `${stickers.length} figurinha${stickers.length > 1 ? "s" : ""} · Ordenadas por raridade` })
     .setTimestamp();
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -181,16 +196,19 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const precosBase: Record<TipoPacote, number> = { standard: moedaCfg.precoStandard, deluxe: moedaCfg.precoDeluxe, ultimate: moedaCfg.precoUltimate };
     const preco = calcularPreco(precosBase[tipo], nivel);
     const saldo = await getSaldo(guildId, userId);
-    const nivelNome = NIVEL_NOME[nivel] ?? "Normal";
+    const nivelNome = getNivelDisplay(emojis, nivel);
     const nomeMoeda = moedaCfg.nomeMoeda;
     const packEmojiMap: Record<TipoPacote, string> = { standard: emojis.pacote_standard, deluxe: emojis.pacote_deluxe, ultimate: emojis.pacote_ultimate };
     const packEmoji = packEmojiMap[tipo];
 
     if (saldo < preco) {
       const descPct = Math.round((1 - preco / precosBase[tipo]) * 100);
-      const descTxt = descPct > 0 ? ` (${descPct}% desconto — ${nivelNome})` : "";
+      const descTxt = descPct > 0 ? ` *(${descPct}% desconto — ${nivelNome})*` : "";
       await interaction.editReply(
-        `❌ **Saldo insuficiente!**\n\n${emojis.moedas} Seu saldo: **${saldo} ${nomeMoeda}**\n${packEmoji} Pacote **${pack.nome}**: **${preco} ${nomeMoeda}**${descTxt}\n\nEnvie mensagens com mais de ${moedaCfg.comprimentoMinMensagem} caracteres para ganhar ${nomeMoeda}! **(+${moedaCfg.moedasPorMensagem} por mensagem)**`
+        `❌ **Saldo insuficiente!**\n\n` +
+        `${emojis.moedas} Seu saldo: **${saldo} ${nomeMoeda}**\n` +
+        `${packEmoji} Pacote **${pack.nome}**: **${preco} ${nomeMoeda}**${descTxt}\n\n` +
+        `Envie mensagens com mais de ${moedaCfg.comprimentoMinMensagem} caracteres para ganhar ${nomeMoeda}! **(+${moedaCfg.moedasPorMensagem} por mensagem)**`
       );
       return;
     }
@@ -262,7 +280,7 @@ export async function handlePackNavigation(interaction: ButtonInteraction) {
 
   const session = sessions.get(sessionKey);
   if (!session) {
-    await interaction.reply({ content: "⏰ Esta sessão expirou. Use **/abrir-pacote** para abrir um novo pacote!", ephemeral: true });
+    await interaction.reply({ content: "⏰ Sessão expirada! Use **/abrir-pacote** para abrir um novo pacote.", ephemeral: true });
     return;
   }
 
@@ -301,10 +319,10 @@ function sortearComPeso(figurinhas: typeof catalogoFigurinhasTable.$inferSelect[
 
 function getRaridadeColor(raridade: string): number {
   switch (raridade) {
-    case "incomum": return 0x57f287;
-    case "rara": return 0x5865f2;
-    case "épica": return 0x470f78;
-    case "lendária": return 0xf1c40f;
-    default: return 0x99aab5;
+    case "incomum": return 0x2ecc71;
+    case "rara": return 0x3498db;
+    case "épica": return 0x9b59b6;
+    case "lendária": return 0xf39c12;
+    default: return 0x95a5a6;
   }
 }
