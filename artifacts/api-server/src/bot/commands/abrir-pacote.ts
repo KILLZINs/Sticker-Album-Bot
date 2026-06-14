@@ -57,13 +57,16 @@ function buildPackEmbed(
 
   // custom IDs: "pacote_prev_{sessionKey}" and "pacote_next_{sessionKey}"
   // sessionKey = "{userId}_{interactionId}" ≤ 20 + 1 + 20 = 41 chars — well under Discord's 100-char limit
+  const imageUrl = fig.imageUrl || null;
+  logger.info({ figurinha: fig.titulo, imageUrl }, "[abrir-pacote] imageUrl da figurinha");
+
   const embed = new EmbedBuilder()
     .setTitle(`${packEmoji} ${packNome} de ${username}`)
     .setDescription(
       `${emoji} **${fig.titulo}**\n` +
       `Raridade: **${fig.raridade}** *(${chance})*`,
     )
-    .setImage(fig.imageUrl ?? null)
+    .setImage(imageUrl)
     .setColor(getRaridadeColor(fig.raridade))
     .addFields(
       { name: `${emojis.moedas} Saldo restante`, value: `${novoSaldo} ${nomeMoeda}`, inline: true },
