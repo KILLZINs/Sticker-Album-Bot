@@ -12,7 +12,7 @@ import { getGuildEmojis, getConquistaEmoji } from "../lib/emoji-config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("conquistas")
-  .setDescription("Veja suas conquistas desbloqueadas")
+  .setDescription("Veja seus badges e marcos desbloqueados")
   .addUserOption((opt) =>
     opt.setName("usuario").setDescription("Ver conquistas de outro usuário").setRequired(false)
   );
@@ -44,34 +44,42 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const totalPossiveis = Object.keys(CONQUISTAS).length;
     const totalDesbloqueadas = conquistasReais.length;
 
+    const progresso = Math.round((totalDesbloqueadas / totalPossiveis) * 100);
+    const barraLen = 20;
+    const preenchido = Math.round((progresso / 100) * barraLen);
+    const barra = "█".repeat(preenchido) + "░".repeat(barraLen - preenchido);
+
     const linhasDesbloqueadas = conquistasReais.map((c) => {
       const info = CONQUISTAS[c.conquistaId]!;
       const emoji = getConquistaEmoji(emojis, c.conquistaId);
       const data = c.ganhoEm.toLocaleDateString("pt-BR");
-      return `${emoji} **${info.nome}** — *${info.descricao}* (${data})`;
+      return `${emoji} **${info.nome}** — *${info.descricao}*\n┗ Desbloqueada em ${data}`;
     });
 
     const idsDesbloqueados = new Set(conquistasReais.map((c) => c.conquistaId));
     const bloqueadas = Object.values(CONQUISTAS).filter((c) => !idsDesbloqueados.has(c.id));
-    const linhasBloqueadas = bloqueadas.map((c) => `🔒 ~~${c.nome}~~`);
-
-    const progresso = Math.round((totalDesbloqueadas / totalPossiveis) * 100);
-    const barraLen = 18;
-    const preenchido = Math.round((progresso / 100) * barraLen);
-    const barra = "█".repeat(preenchido) + "░".repeat(barraLen - preenchido);
+    const linhasBloqueadas = bloqueadas.map((c) => `🔒 ~~${c.nome}~~ — *${c.descricao}*`);
 
     const embed = new EmbedBuilder()
       .setTitle(`🏅 Conquistas de ${alvoUser.username}`)
       .setColor(0x470f78)
       .setThumbnail(alvoUser.displayAvatarURL())
       .setDescription(
-        `**Progresso:** ${totalDesbloqueadas}/${totalPossiveis} (${progresso}%)\n\`${barra}\``
+        `**Progresso:** ${totalDesbloqueadas}/${totalPossiveis} conquistas (**${progresso}%**)\n\`${barra}\``,
       );
+
+    if (totalDesbloqueadas === 0) {
+      embed.setDescription(
+        `📭 ${isSelf ? "Você ainda não desbloqueou" : `<@${alvoUser.id}> ainda não desbloqueou`} nenhuma conquista!\n\n` +
+        `Abra pacotinhos, colete figurinhas e suba de nível para ganhar badges! 🎁\n\n` +
+        `**Progresso:** 0/${totalPossiveis} · \`${"░".repeat(barraLen)}\``,
+      );
+    }
 
     if (linhasDesbloqueadas.length > 0) {
       embed.addFields({
         name: `✅ Desbloqueadas (${totalDesbloqueadas})`,
-        value: linhasDesbloqueadas.join("\n"),
+        value: linhasDesbloqueadas.join("\n\n"),
         inline: false,
       });
     }
@@ -84,13 +92,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       });
     }
 
-    if (totalDesbloqueadas === 0) {
-      embed.setDescription(
-        `📭 ${isSelf ? "Você ainda não tem" : `<@${alvoUser.id}> ainda não tem`} nenhuma conquista!\n\nAbra pacotinhos e colecione figurinhas para desbloquear! 🎁`
-      );
-    }
-
-    embed.setFooter({ text: "Conquistas são desbloqueadas automaticamente ao atingir os marcos!" });
+    embed.setFooter({ text: "Conquistas desbloqueadas automaticamente ao atingir os marcos!" });
 
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
