@@ -62,7 +62,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             value:
               `\`/abrir-pacote Standard\` — 3 figurinhas • **${ps} ${nome}**\n` +
               `\`/abrir-pacote Deluxe\` — 5 figurinhas • **${pd} ${nome}**\n` +
-              `\`/abrir-pacote Ultimate\` — 10 figurinhas • **${pu} ${nome}**\n\n` +
+              `\`/abrir-pacote Ultimate\` — 10 figurinhas • **${pu} ${nome}**\n` +
+              `  • Use **◀ Anterior** e **▶ Próxima** para ver cada figurinha com sua imagem\n\n` +
               `**Chances:** ${emojis.raridade_comum} Comum 55% · ${emojis.raridade_incomum} Incomum 25% · ${emojis.raridade_rara} Rara 12% · ${emojis.raridade_epica} Épica 6% · ${emojis.raridade_lendaria} Lendária 2%`,
             inline: false,
           },
@@ -136,11 +137,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             name: "⚙️ Configurações",
             value:
               `\`/configurar-emojis\` — Personaliza os **28 emojis** do bot\n` +
-              `  • Moedas · Pacotes · Raridades · Níveis · Ranking (🥇🥈🥉) · 13 badges de conquistas\n` +
+              `  • Emoji de moedas · 3 tipos de pacote · 5 raridades · 3 níveis de rebirth\n` +
+              `  • 🥇🥈🥉 Ranking · 13 badges de conquistas individuais\n` +
               `\`/configurar-moedas\` — Configura a economia do servidor\n` +
-              `  • Nome da moeda · Ganho por mensagem · Mínimo de caracteres · Preços dos pacotes\n` +
-              `\`/configurar-figurinhas\` — Configura trocas e doações\n` +
-              `  • Moedas em trocas · Limite por raridade · Cooldown de doação · Nível máx. para doar`,
+              `  • Nome da moeda · Ganho por mensagem · Mínimo de caracteres por msg\n` +
+              `  • Preço dos pacotes Standard, Deluxe e Ultimate\n` +
+              `\`/configurar-figurinhas\` — Configura regras de trocas e doações\n` +
+              `  • Ativar/desativar moedas em trocas · Limite de moedas por raridade (5)\n` +
+              `  • Cooldown de doação · Nível máximo para poder doar/receber`,
             inline: false,
           },
         )
