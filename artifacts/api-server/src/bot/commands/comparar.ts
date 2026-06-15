@@ -25,14 +25,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const meId = interaction.user.id;
   const aId = alvo.id;
 
-  if (aId === meId) {
-    await interaction.editReply("❌ Você não pode se comparar com você mesmo!");
-    return;
-  }
-  if (alvo.bot) {
-    await interaction.editReply("❌ Não é possível comparar com um bot!");
-    return;
-  }
+  if (aId === meId) { await interaction.editReply("❌ Você não pode se comparar com você mesmo!"); return; }
+  if (alvo.bot) { await interaction.editReply("❌ Não é possível comparar com um bot!"); return; }
 
   try {
     const emojis = await getGuildEmojis(guildId);
@@ -68,7 +62,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         .where(eq(catalogoFigurinhasTable.guildId, guildId)),
     ]);
 
-    // Deduplica — usuário pode ter múltiplas cópias da mesma figurinha
     type FigInfo = { catalogoId: number; numero: number; titulo: string; raridade: string };
     const minhaSet = new Map<number, FigInfo>();
     for (const f of minhaCol) minhaSet.set(f.catalogoId, f);
@@ -87,32 +80,38 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const pctMe = totalCat > 0 ? Math.round((minhasUnicas / totalCat) * 100) : 0;
     const pctA = totalCat > 0 ? Math.round((aUnicas / totalCat) * 100) : 0;
 
-    const fmt = (items: FigInfo[], max = 12): string => {
-      if (items.length === 0) return "_Nenhuma_";
+    const barraLen = 8;
+    const barraMe = "█".repeat(Math.round((pctMe / 100) * barraLen)) + "░".repeat(barraLen - Math.round((pctMe / 100) * barraLen));
+    const barraA = "█".repeat(Math.round((pctA / 100) * barraLen)) + "░".repeat(barraLen - Math.round((pctA / 100) * barraLen));
+
+    const fmt = (items: FigInfo[], max = 10): string => {
+      if (items.length === 0) return "*Nenhuma*";
       const lines = items.slice(0, max).map((f) => {
         const e = getRaridadeEmoji(emojis, f.raridade);
         return `${e} **#${f.numero}** ${f.titulo}`;
       });
-      if (items.length > max) lines.push(`_...e mais ${items.length - max}_`);
+      if (items.length > max) lines.push(`*...e mais **${items.length - max}** figurinha${items.length - max > 1 ? "s"  : ""}*`);
       return lines.join("\n");
     };
 
     const embed = new EmbedBuilder()
-      .setTitle("📊 Comparação de Coleções")
+      .setTitle(`📊 ${interaction.user.username} vs ${alvo.username}`)
       .setColor(0x5865f2)
+      .setThumbnail(alvo.displayAvatarURL())
       .setDescription(
-        `**${interaction.user.username}** vs **${alvo.username}**\n` +
-        (totalCat > 0 ? `📚 Catálogo: **${totalCat}** figurinhas no total` : "")
+        totalCat > 0
+          ? `Comparando coleções — catálogo com **${totalCat}** figurinha${totalCat !== 1 ? "s" : ""} no total`
+          : "Catálogo ainda sem figurinhas."
       )
       .addFields(
         {
           name: `🔵 ${interaction.user.username}`,
-          value: `**${minhasUnicas}** únicas — ${pctMe}% do catálogo`,
+          value: `**${minhasUnicas}**/${totalCat} únicas\n\`${barraMe}\` **${pctMe}%**`,
           inline: true,
         },
         {
           name: `🔴 ${alvo.username}`,
-          value: `**${aUnicas}** únicas — ${pctA}% do catálogo`,
+          value: `**${aUnicas}**/${totalCat} únicas\n\`${barraA}\` **${pctA}%**`,
           inline: true,
         },
         {
@@ -121,7 +120,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           inline: true,
         },
         {
-          name: `🔵 Só você tem (${soMinha.length}) — ${alvo.username} precisa destas`,
+          name: `🔵 Só você tem (${soMinha.length}) — ${alvo.username} pode pedir estas`,
           value: fmt(soMinha),
           inline: false,
         },
@@ -131,13 +130,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           inline: false,
         },
       )
-      .setFooter({ text: "Use /dar-figurinha para trocar repetidas com este usuário" })
+      .setFooter({ text: "Use /trocar para propor uma troca · /dar-figurinha para doar repetidas" })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
     logger.error({ err }, "Erro ao comparar coleções");
-    const msg = err instanceof Error ? err.message : String(err);
-    await interaction.editReply(`❌ Erro ao comparar coleções.\n\`\`\`\n${msg}\n\`\`\``);
+    await interaction.editReply(`❌ Erro ao comparar coleções. Tente novamente.`);
   }
 }
