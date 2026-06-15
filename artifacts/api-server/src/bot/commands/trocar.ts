@@ -71,8 +71,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const minhaFig = minhaFigResult[0];
     const deleFig = deleFigResult[0];
 
-    if (!minhaFig) { await interaction.editReply(`❌ Figurinha #${meuNumero} não existe no catálogo!`); return; }
-    if (!deleFig) { await interaction.editReply(`❌ Figurinha #${delesNumero} não existe no catálogo!`); return; }
+    if (!minhaFig) { await interaction.editReply(`❌ Figurinha **#${meuNumero}** não existe no catálogo!`); return; }
+    if (!deleFig) { await interaction.editReply(`❌ Figurinha **#${delesNumero}** não existe no catálogo!`); return; }
 
     if (minhasMoedas > 0) {
       const maxMinhas = getMoedasMaxPorRaridade(figCfg, deleFig.raridade);
@@ -98,16 +98,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const emojiMinha = getRaridadeEmoji(emojis, minhaFig.raridade);
     const emojiDele = getRaridadeEmoji(emojis, deleFig.raridade);
+    const minhaRar = minhaFig.raridade.charAt(0).toUpperCase() + minhaFig.raridade.slice(1);
+    const deleRar = deleFig.raridade.charAt(0).toUpperCase() + deleFig.raridade.slice(1);
 
-    const descricaoTroca = [
-      `**<@${meuId}> oferece:**`,
-      `${emojiMinha} **#${minhaFig.numero}** ${minhaFig.titulo} *(${minhaFig.raridade})*`,
-      minhasMoedas > 0 ? `+ ${emojis.moedas} **${minhasMoedas}** ${nomeMoeda}` : null,
-      ``,
-      `**<@${meuId}> pede de <@${destino.id}>:**`,
-      `${emojiDele} **#${deleFig.numero}** ${deleFig.titulo} *(${deleFig.raridade})*`,
-      moedasDeles > 0 ? `+ ${emojis.moedas} **${moedasDeles}** ${nomeMoeda}` : null,
-    ].filter(Boolean).join("\n");
+    const ofertaEu =
+      `${emojiMinha} **${minhaFig.titulo}**\n┗ ${minhaRar} · #${minhaFig.numero}` +
+      (minhasMoedas > 0 ? `\n${emojis.moedas} + **${minhasMoedas.toLocaleString("pt-BR")}** ${nomeMoeda}` : "");
+
+    const ofertaDele =
+      `${emojiDele} **${deleFig.titulo}**\n┗ ${deleRar} · #${deleFig.numero}` +
+      (moedasDeles > 0 ? `\n${emojis.moedas} + **${moedasDeles.toLocaleString("pt-BR")}** ${nomeMoeda}` : "");
 
     const uid = interaction.id;
     const idAceitar = `troca_aceitar_${uid}`;
@@ -115,9 +115,22 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const embed = new EmbedBuilder()
       .setTitle("🔄 Proposta de Troca!")
-      .setDescription(`<@${destino.id}>, você recebeu uma proposta!\n\n${descricaoTroca}`)
+      .setDescription(`<@${destino.id}>, **<@${meuId}> quer trocar com você!**`)
       .setColor(0x7B2FBE)
-      .setFooter({ text: `Proposta expira em 60 segundos • Apenas ${destino.username} pode responder` })
+      .setThumbnail(interaction.user.displayAvatarURL())
+      .addFields(
+        {
+          name: `📤 ${interaction.user.username} oferece`,
+          value: ofertaEu,
+          inline: true,
+        },
+        {
+          name: `📥 ${interaction.user.username} pede`,
+          value: ofertaDele,
+          inline: true,
+        },
+      )
+      .setFooter({ text: `Proposta expira em 60s · Apenas ${destino.username} pode responder` })
       .setTimestamp();
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -138,11 +151,20 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       collector.stop("respondido");
 
       if (btn.customId === idRecusar) {
-        await btn.update({ embeds: [new EmbedBuilder().setDescription(`❌ <@${destino.id}> recusou a proposta de troca.`).setColor(0xe74c3c)], components: [] });
+        await btn.update({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("❌ Troca Recusada")
+              .setDescription(`<@${destino.id}> recusou a proposta de troca de <@${meuId}>.`)
+              .setColor(0xe74c3c)
+              .setTimestamp(),
+          ],
+          components: [],
+        });
         return;
       }
 
-      // Aceitar — revalidar
+      // Aceitar — revalidar antes de executar
       try {
         const [minhaAinda, deleAinda] = await Promise.all([
           db.select({ id: colecaoUsuarioTable.id }).from(colecaoUsuarioTable).where(and(eq(colecaoUsuarioTable.guildId, guildId), eq(colecaoUsuarioTable.userId, meuId), eq(colecaoUsuarioTable.catalogoId, minhaFig.id))).limit(1),
@@ -166,10 +188,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         await db.insert(colecaoUsuarioTable).values({ guildId, userId: meuId, username: interaction.user.username, catalogoId: deleFig.id });
 
         // Transferir moedas
-        if (minhasMoedas > 0) { await deductMoedas(guildId, meuId, interaction.user.username, minhasMoedas); await addMoedas(guildId, destino.id, destino.username, minhasMoedas); }
-        if (moedasDeles > 0) { await deductMoedas(guildId, destino.id, destino.username, moedasDeles); await addMoedas(guildId, meuId, interaction.user.username, moedasDeles); }
+        if (minhasMoedas > 0) {
+          await deductMoedas(guildId, meuId, interaction.user.username, minhasMoedas);
+          await addMoedas(guildId, destino.id, destino.username, minhasMoedas);
+        }
+        if (moedasDeles > 0) {
+          await deductMoedas(guildId, destino.id, destino.username, moedasDeles);
+          await addMoedas(guildId, meuId, interaction.user.username, moedasDeles);
+        }
 
-        // Verificar conquistas e anunciar
         const [novasMeu, novasDele] = await Promise.all([
           verificarConquistas(guildId, meuId, interaction.user.username, { fezTroca: true }),
           verificarConquistas(guildId, destino.id, destino.username, { fezTroca: true }),
@@ -179,14 +206,29 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           anunciarConquistas(interaction.channelId, destino.id, novasDele, btn.client, guildId),
         ]);
 
+        const moedasTxt = (quem: string, qtd: number) =>
+          qtd > 0 ? `\n${emojis.moedas} + **${qtd.toLocaleString("pt-BR")}** ${nomeMoeda}` : "";
+
         await btn.update({
-          embeds: [new EmbedBuilder()
-            .setTitle("✅ Troca concluída!")
-            .setDescription(
-              `**<@${meuId}>** recebeu: ${emojiDele} **${deleFig.titulo}**${moedasDeles > 0 ? ` + ${emojis.moedas} ${moedasDeles} ${nomeMoeda}` : ""}\n` +
-              `**<@${destino.id}>** recebeu: ${emojiMinha} **${minhaFig.titulo}**${minhasMoedas > 0 ? ` + ${emojis.moedas} ${minhasMoedas} ${nomeMoeda}` : ""}`
-            )
-            .setColor(0x57f287).setTimestamp()],
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("✅ Troca Concluída!")
+              .setColor(0x2ecc71)
+              .addFields(
+                {
+                  name: `🎴 <@${meuId}> recebeu`,
+                  value: `${emojiDele} **${deleFig.titulo}**${moedasTxt(destino.username, moedasDeles)}`,
+                  inline: true,
+                },
+                {
+                  name: `🎴 <@${destino.id}> recebeu`,
+                  value: `${emojiMinha} **${minhaFig.titulo}**${moedasTxt(interaction.user.username, minhasMoedas)}`,
+                  inline: true,
+                },
+              )
+              .setFooter({ text: "Troca realizada com sucesso! Use /ver-album para ver sua coleção" })
+              .setTimestamp(),
+          ],
           components: [],
         });
       } catch (err) {
@@ -197,7 +239,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     collector.on("end", async (_, reason) => {
       if (reason !== "respondido") {
-        await interaction.editReply({ content: "⏰ Proposta de troca expirou.", embeds: [], components: [] }).catch(() => {});
+        await interaction.editReply({ content: `⏰ Proposta de troca expirou sem resposta.`, embeds: [], components: [] }).catch(() => {});
       }
     });
   } catch (err) {
