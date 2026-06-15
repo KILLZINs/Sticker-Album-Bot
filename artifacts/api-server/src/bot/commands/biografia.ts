@@ -13,58 +13,54 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const emojis = await getGuildEmojis(interaction.guildId!);
 
     const embed = new EmbedBuilder()
-      .setTitle("╋━ Skying — Bot de Figurinhas")
+      .setTitle("📘 Sobre o Bot de Figurinhas")
       .setColor(0x7B2FBE)
+      .setThumbnail(interaction.client.user?.displayAvatarURL() ?? null)
       .setDescription(
-        "Um bot de álbum de figurinhas feito **exclusivamente** para o servidor **╋━ Skying**.\n" +
-        "Colecione figurinhas, abra pacotinhos, troque com amigos e suba no ranking!"
+        "Um sistema completo de **álbum de figurinhas** integrado ao Discord.\n" +
+        "Colecione cartas, abra pacotinhos, troque com amigos e escale o ranking!\n\n" +
+        "Cada servidor tem seu próprio catálogo, álbum, economia e personalização total."
       )
       .addFields(
         {
-          name: "👨‍💻 Criado por",
-          value: "**DJ Isaac** — MOD do servidor ╋━ Skying",
-          inline: false,
-        },
-        {
-          name: "🃏 O que é?",
+          name: `${emojis.pacote_standard} Pacotinhos`,
           value:
-            "Um sistema de coleção de figurinhas integrado ao Discord. " +
-            "Admins criam as figurinhas, jogadores ganham moedas enviando mensagens e abrem pacotinhos para desbloquear novas cartas. " +
-            "Cada servidor tem seu próprio catálogo, álbum e economia.",
-          inline: false,
-        },
-        {
-          name: "✨ Funções principais",
-          value:
-            `${emojis.pacote_standard} **Pacotinhos** — Standard, Deluxe e Ultimate com figurinhas aleatórias\n` +
-            `${emojis.moedas} **Economia** — Ganhe moedas enviando mensagens no servidor\n` +
-            `📖 **Álbum** — Navegue pelas suas figurinhas com imagens\n` +
-            `🔁 **Rebirth** — Suba de nível para ter desconto nos pacotes\n` +
-            `🤝 **Trocas** — Troque figurinhas repetidas com outros membros\n` +
-            `🏆 **Ranking** — Veja quem tem mais figurinhas únicas\n` +
-            `🎖️ **Conquistas** — Desbloqueie badges por completar desafios`,
-          inline: false,
-        },
-        {
-          name: "📊 Raridades & Chances de Drop",
-          value:
-            `${emojis.raridade_comum} **Comum** — 55%\n` +
-            `${emojis.raridade_incomum} **Incomum** — 25%\n` +
-            `${emojis.raridade_rara} **Rara** — 12%\n` +
-            `${emojis.raridade_epica} **Épica** — 6%\n` +
-            `${emojis.raridade_lendaria} **Lendária** — 2%`,
+            `${emojis.pacote_standard} **Standard** — 3 figurinhas\n` +
+            `${emojis.pacote_deluxe} **Deluxe** — 5 figurinhas\n` +
+            `${emojis.pacote_ultimate} **Ultimate** — 10 figurinhas`,
           inline: true,
         },
         {
-          name: "⚙️ Personalização (Admin)",
+          name: "📊 Raridades & Chances",
           value:
-            "Os admins podem personalizar:\n" +
-            "• Emojis de raridade e pacotes — `/configurar-emojis`\n" +
-            "• Nome da moeda, ganho por mensagem e preços — `/configurar-moedas`",
+            `${emojis.raridade_comum} Comum — **55%**\n` +
+            `${emojis.raridade_incomum} Incomum — **25%**\n` +
+            `${emojis.raridade_rara} Rara — **12%**\n` +
+            `${emojis.raridade_epica} Épica — **6%**\n` +
+            `${emojis.raridade_lendaria} Lendária — **2%**`,
           inline: true,
-        }
+        },
+        {
+          name: "🎮 Como funciona",
+          value:
+            `${emojis.moedas} Ganhe moedas enviando mensagens no servidor\n` +
+            `📦 Compre pacotinhos com suas moedas\n` +
+            `🔁 Faça rebirth após completar o álbum para ter descontos\n` +
+            `🤝 Troque figurinhas repetidas com outros membros\n` +
+            `🏅 Desbloqueie conquistas e suba no ranking`,
+          inline: false,
+        },
+        {
+          name: "⚙️ Personalização (Admins)",
+          value:
+            "• `/configurar-emojis` — Customize todos os emojis do bot\n" +
+            "• `/configurar-moedas` — Nome, ganho por mensagem e preços dos pacotes\n" +
+            "• `/configurar-figurinhas` — Trocas, doações e cooldowns\n" +
+            "• `/criar-figurinha` e `/modificar-figurinha` — Gerencie o catálogo",
+          inline: false,
+        },
       )
-      .setFooter({ text: "╋━ Skying • Use /help para ver todos os comandos" })
+      .setFooter({ text: "Use /help para ver todos os comandos disponíveis" })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
