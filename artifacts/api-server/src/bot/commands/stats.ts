@@ -30,7 +30,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     ]);
     const nomeMoeda = moedaCfg.nomeMoeda;
 
-    // ── Queries em paralelo ──
     const [
       totalCatResult,
       rarDistResult,
@@ -42,26 +41,21 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       figMaisRaraResult,
       figMaisPopularResult,
     ] = await Promise.all([
-      // Total de figurinhas no catálogo
       db.select({ total: count() }).from(catalogoFigurinhasTable)
         .where(eq(catalogoFigurinhasTable.guildId, guildId)),
 
-      // Distribuição por raridade no catálogo
       db.select({ raridade: catalogoFigurinhasTable.raridade, total: count() })
         .from(catalogoFigurinhasTable)
         .where(eq(catalogoFigurinhasTable.guildId, guildId))
         .groupBy(catalogoFigurinhasTable.raridade),
 
-      // Total de figurinhas coletadas (todas as cópias)
       db.select({ total: count() }).from(colecaoUsuarioTable)
         .where(eq(colecaoUsuarioTable.guildId, guildId)),
 
-      // Total de jogadores com pelo menos 1 figurinha
       db.select({ total: countDistinct(colecaoUsuarioTable.userId) })
         .from(colecaoUsuarioTable)
         .where(eq(colecaoUsuarioTable.guildId, guildId)),
 
-      // Total de conquistas desbloqueadas (apenas as reais)
       db.select({ total: count() }).from(conquistasUsuarioTable)
         .where(
           and(
@@ -70,7 +64,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           )
         ),
 
-      // Top colecionador (mais figurinhas únicas)
       db.select({
         userId: colecaoUsuarioTable.userId,
         username: colecaoUsuarioTable.username,
@@ -82,14 +75,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         .orderBy(desc(countDistinct(colecaoUsuarioTable.catalogoId)))
         .limit(1),
 
-      // Mais rico
       db.select({ userId: moedasUsuarioTable.userId, username: moedasUsuarioTable.username, saldo: moedasUsuarioTable.saldo })
         .from(moedasUsuarioTable)
         .where(eq(moedasUsuarioTable.guildId, guildId))
         .orderBy(desc(moedasUsuarioTable.saldo))
         .limit(1),
 
-      // Figurinha mais rara (lendária com menos donos únicos)
       db.select({
         titulo: catalogoFigurinhasTable.titulo,
         numero: catalogoFigurinhasTable.numero,
@@ -103,7 +94,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         .orderBy(countDistinct(colecaoUsuarioTable.userId))
         .limit(1),
 
-      // Figurinha mais popular (maior número de donos)
       db.select({
         titulo: catalogoFigurinhasTable.titulo,
         numero: catalogoFigurinhasTable.numero,
@@ -123,7 +113,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const totalJogadores = jogadoresResult[0]?.total ?? 0;
     const totalConquistas = conquistasResult[0]?.total ?? 0;
 
-    // Monta linha de raridades
     const RARIDADE_ORDEM = ["lendária", "épica", "rara", "incomum", "comum"];
     const rarMap = new Map(rarDistResult.map((r) => [r.raridade, r.total]));
     const rarLinhas = RARIDADE_ORDEM
@@ -137,53 +126,54 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const maisPopular = figMaisPopularResult[0];
 
     const embed = new EmbedBuilder()
-      .setTitle("📊 Estatísticas do Servidor")
+      .setTitle(`📊 Estatísticas — ${interaction.guild?.name ?? "Servidor"}`)
       .setColor(0x470f78)
+      .setThumbnail(interaction.guild?.iconURL() ?? null)
       .addFields(
         {
           name: "📖 Catálogo",
           value: totalCat === 0
-            ? "_Nenhuma figurinha criada ainda._"
-            : `**${totalCat}** figurinha${totalCat !== 1 ? "s" : ""} no total\n${rarLinhas}`,
+            ? "*Nenhuma figurinha criada ainda.*"
+            : `**${totalCat}** figurinha${totalCat !== 1 ? "s" : ""} · ${rarLinhas}`,
           inline: false,
         },
         {
-          name: "🎴 Figurinhas coletadas",
-          value: `**${totalColetadas}** cópias coletadas no total`,
+          name: "🎴 Cópias coletadas",
+          value: `**${totalColetadas.toLocaleString("pt-BR")}** no total`,
           inline: true,
         },
         {
-          name: "👥 Jogadores",
-          value: `**${totalJogadores}** com álbum ativo`,
+          name: "👥 Jogadores ativos",
+          value: `**${totalJogadores.toLocaleString("pt-BR")}** com álbum`,
           inline: true,
         },
         {
           name: "🏅 Conquistas",
-          value: `**${totalConquistas}** desbloqueadas no total`,
+          value: `**${totalConquistas.toLocaleString("pt-BR")}** desbloqueadas`,
           inline: true,
         },
         ...(topFig ? [{
           name: `${emojis.ranking_primeiro} Top colecionador`,
-          value: `<@${topFig.userId}> — **${topFig.total}** figurinha${topFig.total !== 1 ? "s" : ""} únicas`,
+          value: `<@${topFig.userId}>\n**${topFig.total}** figurinha${topFig.total !== 1 ? "s" : ""} únicas`,
           inline: true,
         }] : []),
         ...(topMoedas ? [{
           name: `${emojis.moedas} Mais rico`,
-          value: `<@${topMoedas.userId}> — **${topMoedas.saldo}** ${nomeMoeda}`,
+          value: `<@${topMoedas.userId}>\n**${topMoedas.saldo.toLocaleString("pt-BR")}** ${nomeMoeda}`,
           inline: true,
         }] : []),
         ...((maisRara && totalCat > 0) ? [{
-          name: `💀 Mais rara`,
-          value: `${getRaridadeEmoji(emojis, maisRara.raridade)} **#${maisRara.numero} ${maisRara.titulo}** — ${maisRara.donos} dono${maisRara.donos !== 1 ? "s" : ""}`,
+          name: `💀 Mais rara (menos donos)`,
+          value: `${getRaridadeEmoji(emojis, maisRara.raridade)} **#${maisRara.numero} ${maisRara.titulo}**\n${maisRara.donos} dono${maisRara.donos !== 1 ? "s" : ""}`,
           inline: true,
         }] : []),
         ...(maisPopular ? [{
           name: `🔥 Mais popular`,
-          value: `${getRaridadeEmoji(emojis, maisPopular.raridade)} **#${maisPopular.numero} ${maisPopular.titulo}** — ${maisPopular.donos} dono${maisPopular.donos !== 1 ? "s" : ""}`,
+          value: `${getRaridadeEmoji(emojis, maisPopular.raridade)} **#${maisPopular.numero} ${maisPopular.titulo}**\n${maisPopular.donos} dono${maisPopular.donos !== 1 ? "s" : ""}`,
           inline: true,
         }] : []),
       )
-      .setFooter({ text: `Estatísticas do servidor • Atualizado em tempo real` })
+      .setFooter({ text: "Atualizado em tempo real · Use /ranking para ver a classificação completa" })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
