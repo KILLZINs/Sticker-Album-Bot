@@ -39,9 +39,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const moedasTroca = figCfg.trocaMoedasHabilitado ? "habilitadas" : "desabilitadas";
 
     const pages: EmbedBuilder[] = [
-      // Página 1 — Economia & Pacotes & Rebirth
+      // ── Página 1 — Economia & Pacotes & Rebirth ──
       new EmbedBuilder()
-        .setTitle("📖 Ajuda — Página 1/3 — Economia & Pacotes")
+        .setTitle("📖 Ajuda — Página 1/4 — Economia & Pacotes")
         .setColor(0x7B2FBE)
         .setDescription(
           `${m} Ganhe **${nome}** enviando mensagens com ≥${minChars} caracteres **(+${ganho} por mensagem)**`
@@ -77,11 +77,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             inline: false,
           },
         )
-        .setFooter({ text: "Página 1/3 — Use os botões ◀ ▶ para navegar" }),
+        .setFooter({ text: "Página 1/4 — Use os botões ◀ ▶ para navegar" }),
 
-      // Página 2 — Álbum & Social & Trocas
+      // ── Página 2 — Álbum & Social ──
       new EmbedBuilder()
-        .setTitle("📖 Ajuda — Página 2/3 — Álbum & Social")
+        .setTitle("📖 Ajuda — Página 2/4 — Álbum & Social")
         .setColor(0x7B2FBE)
         .addFields(
           {
@@ -90,11 +90,20 @@ export async function execute(interaction: ChatInputCommandInteraction) {
               `\`/ver-album\` — Navega pelas figurinhas **únicas** do seu álbum com imagem\n` +
               `  • Use \`@usuário\` para ver o álbum de outra pessoa · \`busca:\` para filtrar\n` +
               `\`/figurinhas\` — Lista todas as suas figurinhas em texto\n` +
-              `\`/catalogo\` — Vê o catálogo completo do servidor\n` +
+              `\`/catalogo\` — Catálogo completo do servidor\n` +
+              `  • \`ordenar: 🔢 Número\` · \`⭐ Raridade\` · \`🔤 Alfabeto\` · \`@usuário\` para ver progresso de outro\n` +
               `\`/repetidas\` — Mostra suas figurinhas com 2+ cópias (doáveis)\n` +
               `\`/remover-figurinha\` — Remove uma figurinha do seu álbum\n` +
               `\`/conquistas\` — Vê seus badges e marcos desbloqueados\n` +
               `\`/comparar @usuário\` — Compara sua coleção com a de outro usuário`,
+            inline: false,
+          },
+          {
+            name: "🖼️ Álbum Pessoal",
+            value:
+              `\`/adicionar-figurinha\` — Adiciona uma figurinha **personalizada** ao seu álbum pessoal\n` +
+              `  • Qualquer usuário pode usar · Foto obrigatória · Raridade e descrição opcionais\n` +
+              `  • Figurinhas pessoais ficam no álbum pessoal, separadas do catálogo do servidor`,
             inline: false,
           },
           {
@@ -109,46 +118,83 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             inline: false,
           },
         )
-        .setFooter({ text: "Página 2/3 — Use os botões ◀ ▶ para navegar" }),
+        .setFooter({ text: "Página 2/4 — Use os botões ◀ ▶ para navegar" }),
 
-      // Página 3 — Admin
+      // ── Página 3 — Admin: Figurinhas & Economia ──
       new EmbedBuilder()
-        .setTitle("📖 Ajuda — Página 3/3 — Administração")
+        .setTitle("📖 Ajuda — Página 3/4 — Administração: Figurinhas & Economia")
         .setColor(0x7B2FBE)
-        .setDescription("Todos os comandos abaixo exigem permissão **Gerenciar Servidor**.")
+        .setDescription(
+          "Comandos de admin exigem: **Administrador**, **Gerenciar Servidor**, ou um cargo configurado via `/configurar-admin`."
+        )
         .addFields(
           {
             name: "🎴 Gerenciar Figurinhas",
             value:
-              `\`/criar-figurinha\` — Adiciona uma nova figurinha ao catálogo\n` +
+              `\`/criar-figurinha\` — Adiciona uma nova figurinha ao catálogo do servidor\n` +
+              `  • Foto obrigatória · Raridade e descrição opcionais · Número gerado automaticamente\n` +
               `\`/modificar-figurinha\` — Edita título, raridade, imagem, número ou descrição\n` +
-              `\`/desbloquear\` — Desbloqueia uma figurinha diretamente para um usuário\n` +
-              `\`/apagar-figurinha\` — Remove uma figurinha do catálogo permanentemente`,
+              `\`/desbloquear-figurinha\` — Desbloqueia uma figurinha do catálogo direto para um usuário\n` +
+              `  • Busque por número ou pelo nome da figurinha\n` +
+              `\`/apagar-figurinha\` — Remove uma figurinha do catálogo permanentemente\n` +
+              `  • ⚠️ Remove da coleção de **todos** os usuários`,
             inline: false,
           },
           {
             name: `${m} Gerenciar Economia & Usuários`,
             value:
-              `\`/dar-moedas\` — Dá ${nome} para um usuário\n` +
-              `\`/forcereset @usuário\` — Reseta todos os dados de um usuário`,
-            inline: false,
-          },
-          {
-            name: "⚙️ Configurações",
-            value:
-              `\`/configurar-emojis\` — Personaliza os **28 emojis** do bot\n` +
-              `  • Emoji de moedas · 3 tipos de pacote · 5 raridades · 3 níveis de rebirth\n` +
-              `  • 🥇🥈🥉 Ranking · 13 badges de conquistas individuais\n` +
-              `\`/configurar-moedas\` — Configura a economia do servidor\n` +
-              `  • Nome da moeda · Ganho por mensagem · Mínimo de caracteres por msg\n` +
-              `  • Preço dos pacotes Standard, Deluxe e Ultimate\n` +
-              `\`/configurar-figurinhas\` — Configura regras de trocas e doações\n` +
-              `  • Ativar/desativar moedas em trocas · Limite de moedas por raridade (5)\n` +
-              `  • Cooldown de doação · Nível máximo para poder doar/receber`,
+              `\`/dar-moedas @usuário quantidade\` — Dá ${nome} para um usuário\n` +
+              `\`/forcereset @usuário\` — Reseta **todos** os dados de um usuário\n` +
+              `  • Remove: figurinhas · moedas · conquistas · histórico de pacotes`,
             inline: false,
           },
         )
-        .setFooter({ text: "Página 3/3 — Use os botões ◀ ▶ para navegar" }),
+        .setFooter({ text: "Página 3/4 — Use os botões ◀ ▶ para navegar" }),
+
+      // ── Página 4 — Admin: Configurações ──
+      new EmbedBuilder()
+        .setTitle("📖 Ajuda — Página 4/4 — Administração: Configurações")
+        .setColor(0x7B2FBE)
+        .setDescription(
+          "Comandos de admin exigem: **Administrador**, **Gerenciar Servidor**, ou um cargo configurado via `/configurar-admin`."
+        )
+        .addFields(
+          {
+            name: "🛡️ Permissões de Admin",
+            value:
+              `\`/configurar-admin adicionar @cargo\` — Libera um cargo para usar comandos admin\n` +
+              `\`/configurar-admin remover @cargo\` — Remove um cargo da lista de admins\n` +
+              `\`/configurar-admin listar\` — Mostra todos os cargos admin configurados\n` +
+              `\`/configurar-admin limpar\` — Remove todos os cargos admin (só Administrador/dono)\n` +
+              `  • Membros com Administrador ou Gerenciar Servidor **sempre** têm acesso`,
+            inline: false,
+          },
+          {
+            name: "⚙️ Configurar Emojis",
+            value:
+              `\`/configurar-emojis\` — Personaliza os **28 emojis** do bot\n` +
+              `  • ${m} Moedas · ${emojis.pacote_standard}${emojis.pacote_deluxe}${emojis.pacote_ultimate} Pacotes · ${emojis.raridade_comum}${emojis.raridade_incomum}${emojis.raridade_rara}${emojis.raridade_epica}${emojis.raridade_lendaria} Raridades\n` +
+              `  • ${emojis.nivel_normal}${emojis.nivel_prata}${emojis.nivel_ouro} Níveis · ${emojis.ranking_primeiro}${emojis.ranking_segundo}${emojis.ranking_terceiro} Ranking · 13 badges de conquistas`,
+            inline: false,
+          },
+          {
+            name: `${m} Configurar Economia`,
+            value:
+              `\`/configurar-moedas\` — Configura a economia do servidor\n` +
+              `  • Nome da moeda · Ganho por mensagem · Mínimo de caracteres\n` +
+              `  • Preços dos pacotes Standard (${ps}), Deluxe (${pd}) e Ultimate (${pu})`,
+            inline: false,
+          },
+          {
+            name: "🃏 Configurar Figurinhas",
+            value:
+              `\`/configurar-figurinhas\` — Configura regras de trocas e doações\n` +
+              `  • Ativar/desativar moedas em trocas · Limite de ${nome} por raridade (5 raridades)\n` +
+              `  • Cooldown de doação (atual: **${cooldownTxt}**) · Nível máximo para doar/receber`,
+            inline: false,
+          },
+        )
+        .setFooter({ text: "Página 4/4 — Use os botões ◀ ▶ para navegar" }),
     ];
 
     let pagina = 0;
