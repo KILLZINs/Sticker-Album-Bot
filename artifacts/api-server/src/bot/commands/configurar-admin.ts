@@ -2,7 +2,6 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  PermissionFlagsBits,
 } from "discord.js";
 import { db } from "@workspace/db";
 import { adminConfigTable } from "@workspace/db";
@@ -13,7 +12,6 @@ import { invalidateAdminCache } from "../lib/admin-check.js";
 export const data = new SlashCommandBuilder()
   .setName("configurar-admin")
   .setDescription("[DONO/ADMIN] Gerencia os cargos com permissão de admin no bot")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addSubcommand((sub) =>
     sub
       .setName("adicionar")
