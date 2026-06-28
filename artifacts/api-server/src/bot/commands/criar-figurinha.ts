@@ -1,7 +1,6 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
-  PermissionFlagsBits,
   EmbedBuilder,
 } from "discord.js";
 import { db } from "@workspace/db";
@@ -9,11 +8,11 @@ import { catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and, count } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
+import { isAdmin, ADMIN_DENY_MSG } from "../lib/admin-check.js";
 
 export const data = new SlashCommandBuilder()
   .setName("criar-figurinha")
-  .setDescription("(Admin) Adiciona uma nova figurinha ao catálogo do servidor")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .setDescription("[ADMIN] Adiciona uma nova figurinha ao catálogo do servidor")
   .addAttachmentOption((opt) =>
     opt.setName("foto").setDescription("A imagem da figurinha").setRequired(true)
   )
@@ -38,6 +37,10 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await isAdmin(interaction))) {
+    await interaction.reply({ content: ADMIN_DENY_MSG, ephemeral: true });
+    return;
+  }
   await interaction.deferReply({ ephemeral: true });
 
   const foto = interaction.options.getAttachment("foto", true);

@@ -2,17 +2,16 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  PermissionFlagsBits,
 } from "discord.js";
 import { logger } from "../lib/logger.js";
 import { addMoedas, getSaldo } from "../lib/moedas.js";
 import { getGuildEmojis } from "../lib/emoji-config.js";
 import { getGuildMoedaConfig } from "../lib/moeda-config.js";
+import { isAdmin, ADMIN_DENY_MSG } from "../lib/admin-check.js";
 
 export const data = new SlashCommandBuilder()
   .setName("dar-moedas")
   .setDescription("[ADMIN] Dá moedas para um usuário")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addUserOption((opt) =>
     opt
       .setName("usuario")
@@ -29,6 +28,10 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await isAdmin(interaction))) {
+    await interaction.reply({ content: ADMIN_DENY_MSG, ephemeral: true });
+    return;
+  }
   await interaction.deferReply({ ephemeral: true });
 
   const alvo = interaction.options.getUser("usuario", true);

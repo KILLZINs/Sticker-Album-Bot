@@ -6,7 +6,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ComponentType,
-  PermissionFlagsBits,
 } from "discord.js";
 import { db } from "@workspace/db";
 import {
@@ -17,11 +16,11 @@ import {
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
+import { isAdmin, ADMIN_DENY_MSG } from "../lib/admin-check.js";
 
 export const data = new SlashCommandBuilder()
   .setName("forcereset")
   .setDescription("[ADMIN] Reseta todos os dados de um usuário (figurinhas, moedas, conquistas e pacotes diários)")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addUserOption((opt) =>
     opt
       .setName("usuario")
@@ -30,6 +29,10 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await isAdmin(interaction))) {
+    await interaction.reply({ content: ADMIN_DENY_MSG, ephemeral: true });
+    return;
+  }
   await interaction.deferReply({ ephemeral: true });
 
   const alvo = interaction.options.getUser("usuario", true);

@@ -2,18 +2,17 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  PermissionFlagsBits,
 } from "discord.js";
 import { db } from "@workspace/db";
 import { catalogoFigurinhasTable, colecaoUsuarioTable } from "@workspace/db";
 import { eq, and, ilike } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
+import { isAdmin, ADMIN_DENY_MSG } from "../lib/admin-check.js";
 
 export const data = new SlashCommandBuilder()
   .setName("desbloquear-figurinha")
-  .setDescription("(Admin) Desbloqueia uma figurinha do catálogo diretamente para um usuário")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .setDescription("[ADMIN] Desbloqueia uma figurinha do catálogo diretamente para um usuário")
   .addUserOption((opt) =>
     opt.setName("usuario").setDescription("Usuário que vai receber a figurinha").setRequired(true)
   )
@@ -33,6 +32,10 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await isAdmin(interaction))) {
+    await interaction.reply({ content: ADMIN_DENY_MSG, ephemeral: true });
+    return;
+  }
   await interaction.deferReply({ ephemeral: true });
 
   const alvo = interaction.options.getUser("usuario", true);

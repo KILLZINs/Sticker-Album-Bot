@@ -127,6 +127,17 @@ export const figurinhaConfigTable = pgTable(
   (t) => [unique("figurinha_config_unique").on(t.guildId, t.chave)]
 );
 
+// Cargos com permissão de admin no bot (por servidor)
+export const adminConfigTable = pgTable(
+  "admin_config",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    roleId: text("role_id").notNull(),
+  },
+  (t) => [unique("admin_config_unique").on(t.guildId, t.roleId)]
+);
+
 export const insertCatalogoSchema = createInsertSchema(catalogoFigurinhasTable).omit({ id: true, criadoEm: true });
 export const insertColecaoSchema = createInsertSchema(colecaoUsuarioTable).omit({ id: true, desbloqueadoEm: true });
 export const insertFigurinhaSchema = createInsertSchema(figurinhasTable).omit({ id: true, criadoEm: true });
@@ -143,3 +154,4 @@ export type Album = typeof albumsTable.$inferSelect;
 export type EmojiConfig = typeof emojiConfigTable.$inferSelect;
 export type MoedaConfig = typeof moedaConfigTable.$inferSelect;
 export type FigurinhaConfig = typeof figurinhaConfigTable.$inferSelect;
+export type AdminConfig = typeof adminConfigTable.$inferSelect;

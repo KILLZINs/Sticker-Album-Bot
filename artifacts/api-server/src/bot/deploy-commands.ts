@@ -27,6 +27,7 @@ import * as configurarMoedas from "./commands/configurar-moedas.js";
 import * as modificarFigurinha from "./commands/modificar-figurinha.js";
 import * as stats from "./commands/stats.js";
 import * as adicionar from "./commands/adicionar.js";
+import * as configurarAdmin from "./commands/configurar-admin.js";
 
 const commands = [
   criarFigurinha.data,
@@ -56,6 +57,7 @@ const commands = [
   modificarFigurinha.data,
   stats.data,
   adicionar.data,
+  configurarAdmin.data,
 ].map((cmd) => cmd.toJSON());
 
 export async function deployCommands() {

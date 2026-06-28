@@ -36,6 +36,8 @@ import * as modificarFigurinha from "./commands/modificar-figurinha.js";
 import * as biografia from "./commands/biografia.js";
 import * as comparar from "./commands/comparar.js";
 import * as stats from "./commands/stats.js";
+import * as configurarAdmin from "./commands/configurar-admin.js";
+import { refreshExpiredUrlsInGuild } from "./lib/refresh-urls.js";
 
 interface Command {
   data: SlashCommandOptionsOnlyBuilder;
@@ -47,7 +49,7 @@ const allCommands: Command[] = [
   ranking, trocar, conquistas, rebirth, removerFigurinha, apagarFigurinha,
   help, saldo, darMoedas, atm, forceReset, repetidas, darFigurinha,
   configurarEmojis, configurarMoedas, configurarFigurinhas, modificarFigurinha,
-  biografia, comparar, stats,
+  biografia, comparar, stats, configurarAdmin,
 ];
 
 const commandMap = new Collection<string, Command>();
@@ -63,7 +65,26 @@ export async function startBot() {
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
   });
 
-  client.once("ready", (c) => { logger.info({ tag: c.user.tag }, "🤖 Bot do Álbum de Figurinhas online!"); });
+  client.once("ready", (c) => {
+    logger.info({ tag: c.user.tag }, "🤖 Bot do Álbum de Figurinhas online!");
+
+    // Atualiza URLs expiradas do Discord CDN a cada 12 horas
+    const runUrlRefresh = async () => {
+      const guilds = [...c.guilds.cache.values()];
+      logger.info({ count: guilds.length }, "🔄 Iniciando refresh de URLs expiradas...");
+      for (const guild of guilds) {
+        await refreshExpiredUrlsInGuild(c.rest, guild.id);
+      }
+    };
+    // Primeira execução 2 minutos após o boot (deixa o bot estabilizar)
+    setTimeout(() => {
+      runUrlRefresh().catch((err) => logger.warn({ err }, "Erro no refresh inicial de URLs"));
+    }, 2 * 60 * 1000);
+    // Repetir a cada 12 horas
+    setInterval(() => {
+      runUrlRefresh().catch((err) => logger.warn({ err }, "Erro no refresh periódico de URLs"));
+    }, 12 * 60 * 60 * 1000);
+  });
 
   client.on("messageCreate", async (message) => {
     if (message.author.bot || !message.guildId) return;

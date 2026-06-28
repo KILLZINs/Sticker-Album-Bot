@@ -2,20 +2,19 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  PermissionFlagsBits,
 } from "discord.js";
 import { db } from "@workspace/db";
 import { catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and, ne } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
+import { isAdmin, ADMIN_DENY_MSG } from "../lib/admin-check.js";
 
 const RARIDADES = ["comum", "incomum", "rara", "épica", "lendária"] as const;
 
 export const data = new SlashCommandBuilder()
   .setName("modificar-figurinha")
   .setDescription("[ADMIN] Modifica uma figurinha existente no catálogo")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addIntegerOption((opt) =>
     opt.setName("numero").setDescription("Número atual da figurinha no catálogo").setRequired(true).setMinValue(1)
   )
@@ -43,6 +42,10 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await isAdmin(interaction))) {
+    await interaction.reply({ content: ADMIN_DENY_MSG, ephemeral: true });
+    return;
+  }
   await interaction.deferReply({ ephemeral: true });
 
   const numero = interaction.options.getInteger("numero", true);

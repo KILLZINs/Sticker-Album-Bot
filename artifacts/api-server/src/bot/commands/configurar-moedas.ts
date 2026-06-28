@@ -5,7 +5,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  PermissionFlagsBits,
   ButtonInteraction,
   ModalSubmitInteraction,
   ModalBuilder,
@@ -25,11 +24,11 @@ import {
   type MoedaChave,
 } from "../lib/moeda-config.js";
 import { getGuildEmojis, type GuildEmojis } from "../lib/emoji-config.js";
+import { isAdmin, ADMIN_DENY_MSG } from "../lib/admin-check.js";
 
 export const data = new SlashCommandBuilder()
   .setName("configurar-moedas")
-  .setDescription("[ADMIN] Configura o nome da moeda, ganho por mensagem e preços dos pacotes")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+  .setDescription("[ADMIN] Configura o nome da moeda, ganho por mensagem e preços dos pacotes");
 
 function buildPanelEmbed(config: GuildMoedaConfig): EmbedBuilder {
   return new EmbedBuilder()
@@ -103,6 +102,10 @@ function buildPanelComponents(emojis: GuildEmojis): ActionRowBuilder<ButtonBuild
 }
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await isAdmin(interaction))) {
+    await interaction.reply({ content: ADMIN_DENY_MSG, ephemeral: true });
+    return;
+  }
   await interaction.deferReply({ ephemeral: true });
 
   try {

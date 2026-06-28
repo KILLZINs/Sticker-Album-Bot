@@ -7,7 +7,6 @@ import {
   ButtonStyle,
   StringSelectMenuBuilder,
   StringSelectMenuInteraction,
-  PermissionFlagsBits,
   ButtonInteraction,
   ModalSubmitInteraction,
   ModalBuilder,
@@ -25,11 +24,11 @@ import {
   type GuildEmojis,
   type EmojiChave,
 } from "../lib/emoji-config.js";
+import { isAdmin, ADMIN_DENY_MSG } from "../lib/admin-check.js";
 
 export const data = new SlashCommandBuilder()
   .setName("configurar-emojis")
-  .setDescription("[ADMIN] Configura todos os emojis usados pelo bot neste servidor")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+  .setDescription("[ADMIN] Configura todos os emojis usados pelo bot neste servidor");
 
 const NOMES_CHAVES: Record<EmojiChave, string> = {
   moedas: "Moedas",
@@ -150,6 +149,10 @@ function buildComponents(emojis: GuildEmojis, msgId: string): ActionRowBuilder<a
 }
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await isAdmin(interaction))) {
+    await interaction.reply({ content: ADMIN_DENY_MSG, ephemeral: true });
+    return;
+  }
   await interaction.deferReply({ ephemeral: true });
   try {
     const emojis = await getGuildEmojis(interaction.guildId!);

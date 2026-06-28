@@ -5,7 +5,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  PermissionFlagsBits,
   ButtonInteraction,
   ModalSubmitInteraction,
   ModalBuilder,
@@ -26,11 +25,11 @@ import {
 } from "../lib/figurinha-config.js";
 import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 import { getGuildEmojis, getRaridadeEmoji, type GuildEmojis } from "../lib/emoji-config.js";
+import { isAdmin, ADMIN_DENY_MSG } from "../lib/admin-check.js";
 
 export const data = new SlashCommandBuilder()
   .setName("configurar-figurinhas")
-  .setDescription("[ADMIN] Configura as regras de transferência e trocas de figurinhas")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+  .setDescription("[ADMIN] Configura as regras de transferência e trocas de figurinhas");
 
 async function buildPanelEmbed(guildId: string, config: GuildFigurinhaConfig, emojis: GuildEmojis): Promise<EmbedBuilder> {
   const moedaCfg = await getGuildMoedaConfig(guildId);
@@ -110,6 +109,10 @@ function buildPanelComponents(emojis: GuildEmojis): ActionRowBuilder<ButtonBuild
 }
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await isAdmin(interaction))) {
+    await interaction.reply({ content: ADMIN_DENY_MSG, ephemeral: true });
+    return;
+  }
   await interaction.deferReply({ ephemeral: true });
   try {
     const [config, emojis] = await Promise.all([

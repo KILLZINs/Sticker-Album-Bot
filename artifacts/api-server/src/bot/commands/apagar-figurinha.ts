@@ -6,17 +6,16 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ComponentType,
-  PermissionFlagsBits,
 } from "discord.js";
 import { db } from "@workspace/db";
 import { catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
+import { isAdmin, ADMIN_DENY_MSG } from "../lib/admin-check.js";
 
 export const data = new SlashCommandBuilder()
   .setName("apagar-figurinha")
   .setDescription("[ADMIN] Apaga permanentemente uma figurinha do catálogo do servidor")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addIntegerOption((opt) =>
     opt
       .setName("numero")
@@ -26,6 +25,10 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await isAdmin(interaction))) {
+    await interaction.reply({ content: ADMIN_DENY_MSG, ephemeral: true });
+    return;
+  }
   await interaction.deferReply({ ephemeral: true });
 
   const numero = interaction.options.getInteger("numero", true);
