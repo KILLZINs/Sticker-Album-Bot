@@ -27,8 +27,14 @@ export function unixTimestamp(date: Date): number {
   return Math.floor(date.getTime() / 1000);
 }
 
+const ILIMITADO_SENTINEL = new Date("2090-01-01T00:00:00Z");
+
+function isIlimitado(encerraEm: Date): boolean {
+  return encerraEm >= ILIMITADO_SENTINEL;
+}
+
 function apostasAbertas(bolao: { encerraEm: Date; encerrado: boolean }): boolean {
-  return !bolao.encerrado && bolao.encerraEm > new Date();
+  return !bolao.encerrado && (isIlimitado(bolao.encerraEm) || bolao.encerraEm > new Date());
 }
 
 function valorZero(v: string | null): boolean {
@@ -61,7 +67,9 @@ export async function gerarEmbedBolao(bolaoId: number) {
   const statusLinha = bolao.encerrado
     ? "**✅ Bolão encerrado**"
     : aberto
-    ? `**🟢 Apostas abertas** — encerram <t:${unixTimestamp(bolao.encerraEm)}:R>`
+    ? isIlimitado(bolao.encerraEm)
+      ? "**🟢 Apostas abertas** — ⏳ Sem prazo (o admin fecha manualmente)"
+      : `**🟢 Apostas abertas** — encerram <t:${unixTimestamp(bolao.encerraEm)}:R>`
     : "**🔴 Apostas encerradas** — aguardando placar do admin";
 
   const embed = new EmbedBuilder()
@@ -265,6 +273,11 @@ export async function resolverBolao(
 
 export function agendarEncerramentoApostas(client: Client, bolaoId: number, encerraEm: Date) {
   if (timersAtivos.has(bolaoId)) return;
+  // Bolão ilimitado — sem timer automático
+  if (isIlimitado(encerraEm)) {
+    logger.info({ bolaoId }, "Bolão ilimitado — sem timer automático");
+    return;
+  }
   const diff = encerraEm.getTime() - Date.now();
   if (diff <= 0) {
     encerrarApostas(client, bolaoId);

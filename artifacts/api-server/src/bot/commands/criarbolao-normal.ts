@@ -19,8 +19,8 @@ export const data = new SlashCommandBuilder()
   .addIntegerOption((opt) =>
     opt
       .setName("tempo")
-      .setDescription("Duração das apostas em minutos (ex: 60)")
-      .setMinValue(1)
+      .setDescription("Duração das apostas em minutos (0 = ilimitado, sem prazo)")
+      .setMinValue(0)
       .setRequired(true)
   )
   .addStringOption((opt) =>
@@ -62,7 +62,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   await interaction.deferReply();
 
-  const encerraEm = new Date(Date.now() + tempo * 60 * 1000);
+  // tempo = 0 → ilimitado (sem prazo automático)
+  const encerraEm = tempo === 0
+    ? new Date("2099-12-31T23:59:59Z")
+    : new Date(Date.now() + tempo * 60 * 1000);
 
   const [bolao] = await db
     .insert(bolaoTable)
