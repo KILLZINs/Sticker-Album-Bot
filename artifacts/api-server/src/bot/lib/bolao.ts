@@ -17,9 +17,9 @@ import { logger } from "./logger.js";
 import { isAdmin, ADMIN_DENY_MSG } from "./admin-check.js";
 
 // Cores do tema roxo
-const COR_ATIVO     = 0x9B59B6; // roxo vibrante
-const COR_AGUARDANDO = 0x6C3483; // roxo escuro
-const COR_ENCERRADO  = 0x7D3C98; // roxo médio
+const COR_ATIVO      = 0x9B59B6;
+const COR_AGUARDANDO = 0x6C3483;
+const COR_ENCERRADO  = 0x7D3C98;
 
 const timersAtivos = new Map<number, ReturnType<typeof setTimeout>>();
 
@@ -30,6 +30,12 @@ export function unixTimestamp(date: Date): number {
 function apostasAbertas(bolao: { encerraEm: Date; encerrado: boolean }): boolean {
   return !bolao.encerrado && bolao.encerraEm > new Date();
 }
+
+function valorZero(v: string | null): boolean {
+  return !v || v.trim() === "0" || v.trim() === "";
+}
+
+// ── Geração do embed ──────────────────────────────────────────────────────────
 
 export async function gerarEmbedBolao(bolaoId: number) {
   const [bolao] = await db
@@ -52,36 +58,42 @@ export async function gerarEmbedBolao(bolaoId: number) {
   if (bolao.encerrado) cor = COR_ENCERRADO;
   else if (!aberto) cor = COR_AGUARDANDO;
 
-  // ── Cabeçalho ──
+  const statusLinha = bolao.encerrado
+    ? "**✅ Bolão encerrado**"
+    : aberto
+    ? `**🟢 Apostas abertas** — encerram <t:${unixTimestamp(bolao.encerraEm)}:R>`
+    : "**🔴 Apostas encerradas** — aguardando placar do admin";
+
   const embed = new EmbedBuilder()
     .setColor(cor)
     .setTitle(`⚽  ${bolao.time1}  ×  ${bolao.time2}`)
     .setDescription(
-      [
-        `> ${tipo}  •  ID \`#${bolao.id}\``,
-        "",
-        bolao.encerrado
-          ? `**✅ Bolão encerrado**`
-          : aberto
-          ? `**🟢 Apostas abertas** — encerram <t:${unixTimestamp(bolao.encerraEm)}:R>`
-          : `**🔴 Apostas encerradas** — aguardando placar do admin`,
-      ].join("\n")
+      [`> ${tipo}  •  ID \`#${bolao.id}\``, "", statusLinha].join("\n")
     );
 
-  // ── Prêmio / valor mínimo ──
+  // Prêmio / valor mínimo
+  const semValor = valorZero(bolao.valorMinimo);
   if (bolao.tipo === "normal" && bolao.premio) {
     embed.addFields(
       { name: "🎖️ Prêmio", value: `\`${bolao.premio}\``, inline: true },
-      { name: "💸 Aposta mínima", value: `\`${bolao.valorMinimo}\``, inline: true }
+      {
+        name: "💸 Aposta mínima",
+        value: semValor ? "`Livre`" : `\`${bolao.valorMinimo}\``,
+        inline: true,
+      }
     );
   } else {
     embed.addFields(
-      { name: "📈 Prêmio", value: "Acumulativo (soma das apostas)", inline: true },
-      { name: "💸 Aposta mínima", value: `\`${bolao.valorMinimo}\``, inline: true }
+      { name: "📈 Prêmio", value: "Acumulativo", inline: true },
+      {
+        name: "💸 Aposta mínima",
+        value: semValor ? "`Livre`" : `\`${bolao.valorMinimo}\``,
+        inline: true,
+      }
     );
   }
 
-  // ── Placar atual / final ──
+  // Placar atual / final
   if (bolao.golTime1 !== null && bolao.golTime2 !== null) {
     embed.addFields({
       name: bolao.encerrado ? "🏁 Placar Final" : "📊 Placar atual",
@@ -90,10 +102,9 @@ export async function gerarEmbedBolao(bolaoId: number) {
     });
   }
 
-  // ── Separador visual ──
   embed.addFields({ name: "\u200B", value: "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬", inline: false });
 
-  // ── Lista de palpites ──
+  // Lista de palpites
   if (palpites.length === 0) {
     embed.addFields({
       name: `📋 Palpites — 0 participantes`,
@@ -104,7 +115,10 @@ export async function gerarEmbedBolao(bolaoId: number) {
     });
   } else {
     const lista = palpites
-      .map((p) => `> 🎯 **${p.username}** — \`${p.golTime1} × ${p.golTime2}\`  •  apostou \`${p.apostado}\``)
+      .map((p) => {
+        const apostado = p.apostado ? `  •  apostou \`${p.apostado}\`` : "";
+        return `> 🎯 **${p.username}** — \`${p.golTime1} × ${p.golTime2}\`${apostado}`;
+      })
       .join("\n");
     embed.addFields({
       name: `📋 Palpites — ${palpites.length} participante${palpites.length !== 1 ? "s" : ""}`,
@@ -113,7 +127,7 @@ export async function gerarEmbedBolao(bolaoId: number) {
     });
   }
 
-  // ── Resultado (se encerrado) ──
+  // Resultado se encerrado
   if (bolao.encerrado && bolao.golTime1 !== null && bolao.golTime2 !== null) {
     const corretos = palpites.filter(
       (p) => p.golTime1 === bolao.golTime1 && p.golTime2 === bolao.golTime2
@@ -129,7 +143,10 @@ export async function gerarEmbedBolao(bolaoId: number) {
       });
     } else {
       const vencedores = corretos
-        .map((p) => `> 🥇 **${p.username}** — acertou \`${p.golTime1} × ${p.golTime2}\` (apostou \`${p.apostado}\`)`)
+        .map((p) => {
+          const apostado = p.apostado ? ` (apostou \`${p.apostado}\`)` : "";
+          return `> 🥇 **${p.username}** — acertou \`${p.golTime1} × ${p.golTime2}\`${apostado}`;
+        })
         .join("\n");
       embed.addFields({
         name: `🏆 Vencedor${corretos.length !== 1 ? "es" : ""} — ${corretos.length} pessoa${corretos.length !== 1 ? "s" : ""}`,
@@ -148,12 +165,18 @@ export async function gerarEmbedBolao(bolaoId: number) {
   return embed;
 }
 
+// ── Linhas de botões ──────────────────────────────────────────────────────────
+
 export function criarBotoesAtivo(bolaoId: number): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`bolao_palpite_${bolaoId}`)
       .setLabel("🎯 Dar palpite")
       .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`bolao_encerrar_${bolaoId}`)
+      .setLabel("🔒 Encerrar Apostas")
+      .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(`bolao_placar_${bolaoId}`)
       .setLabel("⚙️ Definir Placar")
@@ -165,10 +188,12 @@ export function criarBotoesAguardando(bolaoId: number): ActionRowBuilder<ButtonB
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`bolao_placar_${bolaoId}`)
-      .setLabel("⚙️ Definir Placar")
+      .setLabel("⚙️ Definir Placar e Finalizar")
       .setStyle(ButtonStyle.Danger)
   );
 }
+
+// ── Lógica principal ──────────────────────────────────────────────────────────
 
 export async function encerrarApostas(client: Client, bolaoId: number) {
   try {
@@ -196,9 +221,9 @@ export async function encerrarApostas(client: Client, bolaoId: number) {
     }
 
     timersAtivos.delete(bolaoId);
-    logger.info({ bolaoId }, "Apostas do bolão encerradas — aguardando placar do admin");
+    logger.info({ bolaoId }, "Apostas encerradas — aguardando placar do admin");
   } catch (err) {
-    logger.error({ err, bolaoId }, "Erro ao encerrar apostas do bolão");
+    logger.error({ err, bolaoId }, "Erro ao encerrar apostas");
   }
 }
 
@@ -206,8 +231,7 @@ export async function resolverBolao(
   client: Client,
   bolaoId: number,
   gol1: number,
-  gol2: number,
-  guildId: string
+  gol2: number
 ) {
   const [bolao] = await db
     .select()
@@ -236,7 +260,7 @@ export async function resolverBolao(
   }
 
   timersAtivos.delete(bolaoId);
-  logger.info({ bolaoId, gol1, gol2, guildId }, "Bolão resolvido");
+  logger.info({ bolaoId, gol1, gol2 }, "Bolão resolvido");
 }
 
 export function agendarEncerramentoApostas(client: Client, bolaoId: number, encerraEm: Date) {
@@ -248,7 +272,7 @@ export function agendarEncerramentoApostas(client: Client, bolaoId: number, ence
   }
   const timer = setTimeout(() => encerrarApostas(client, bolaoId), diff);
   timersAtivos.set(bolaoId, timer);
-  logger.info({ bolaoId, diffMs: diff }, "Timer de apostas do bolão agendado");
+  logger.info({ bolaoId, diffMs: diff }, "Timer de apostas agendado");
 }
 
 export async function restaurarTimersBolao(client: Client) {
@@ -267,6 +291,8 @@ export async function restaurarTimersBolao(client: Client) {
   }
 }
 
+// ── Handlers de interação ─────────────────────────────────────────────────────
+
 export async function handleBolaoButton(interaction: ButtonInteraction) {
   const bolaoId = parseInt(interaction.customId.replace("bolao_palpite_", ""), 10);
   if (isNaN(bolaoId)) return;
@@ -281,39 +307,29 @@ export async function handleBolaoButton(interaction: ButtonInteraction) {
     await interaction.reply({ content: "❌ Bolão não encontrado.", ephemeral: true });
     return;
   }
-
   if (bolao.encerrado || bolao.encerraEm <= new Date()) {
-    await interaction.reply({
-      content: "❌ As apostas deste bolão já foram encerradas.",
-      ephemeral: true,
-    });
+    await interaction.reply({ content: "❌ As apostas deste bolão já foram encerradas.", ephemeral: true });
     return;
   }
 
   const jaParticipou = await db
     .select()
     .from(palpitesBolaoTable)
-    .where(
-      and(
-        eq(palpitesBolaoTable.bolaoId, bolaoId),
-        eq(palpitesBolaoTable.userId, interaction.user.id)
-      )
-    )
+    .where(and(eq(palpitesBolaoTable.bolaoId, bolaoId), eq(palpitesBolaoTable.userId, interaction.user.id)))
     .limit(1);
 
   if (jaParticipou.length > 0) {
-    await interaction.reply({
-      content: "❌ Você já deu seu palpite neste bolão.",
-      ephemeral: true,
-    });
+    await interaction.reply({ content: "❌ Você já deu seu palpite neste bolão.", ephemeral: true });
     return;
   }
+
+  const semValorMin = valorZero(bolao.valorMinimo);
 
   const modal = new ModalBuilder()
     .setCustomId(`bolao_modal_${bolaoId}`)
     .setTitle(`⚽ Palpite: ${bolao.time1} × ${bolao.time2}`);
 
-  modal.addComponents(
+  const componentes: ActionRowBuilder<TextInputBuilder>[] = [
     new ActionRowBuilder<TextInputBuilder>().addComponents(
       new TextInputBuilder()
         .setCustomId("gol_time1")
@@ -330,16 +346,22 @@ export async function handleBolaoButton(interaction: ButtonInteraction) {
         .setPlaceholder("Ex: 1")
         .setMinLength(1).setMaxLength(2).setRequired(true)
     ),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder()
-        .setCustomId("aposta")
-        .setLabel(`Quanto você está apostando (mínimo: ${bolao.valorMinimo})`)
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder(`Ex: ${bolao.valorMinimo}`)
-        .setMinLength(1).setMaxLength(50).setRequired(true)
-    )
-  );
+  ];
 
+  if (!semValorMin) {
+    componentes.push(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("aposta")
+          .setLabel(`Quanto você está apostando (mínimo: ${bolao.valorMinimo})`)
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder(`Ex: ${bolao.valorMinimo}`)
+          .setMinLength(1).setMaxLength(50).setRequired(true)
+      )
+    );
+  }
+
+  modal.addComponents(...componentes);
   await interaction.showModal(modal);
 }
 
@@ -349,13 +371,9 @@ export async function handleBolaoModal(client: Client, interaction: ModalSubmitI
 
   const golTime1 = parseInt(interaction.fields.getTextInputValue("gol_time1").trim(), 10);
   const golTime2 = parseInt(interaction.fields.getTextInputValue("gol_time2").trim(), 10);
-  const aposta = interaction.fields.getTextInputValue("aposta").trim();
 
   if (isNaN(golTime1) || isNaN(golTime2) || golTime1 < 0 || golTime2 < 0) {
-    await interaction.reply({
-      content: "❌ Gols inválidos. Informe números inteiros ≥ 0.",
-      ephemeral: true,
-    });
+    await interaction.reply({ content: "❌ Gols inválidos. Informe números inteiros ≥ 0.", ephemeral: true });
     return;
   }
 
@@ -366,11 +384,16 @@ export async function handleBolaoModal(client: Client, interaction: ModalSubmitI
     .limit(1);
 
   if (!bolao || bolao.encerrado || bolao.encerraEm <= new Date()) {
-    await interaction.reply({
-      content: "❌ As apostas deste bolão já foram encerradas.",
-      ephemeral: true,
-    });
+    await interaction.reply({ content: "❌ As apostas deste bolão já foram encerradas.", ephemeral: true });
     return;
+  }
+
+  // Aposta: opcional se valorMinimo for "0"
+  let aposta = "";
+  try {
+    aposta = interaction.fields.getTextInputValue("aposta").trim();
+  } catch {
+    // Campo não estava no modal (valorMinimo = 0)
   }
 
   try {
@@ -383,10 +406,7 @@ export async function handleBolaoModal(client: Client, interaction: ModalSubmitI
       apostado: aposta,
     });
   } catch {
-    await interaction.reply({
-      content: "❌ Você já deu seu palpite neste bolão.",
-      ephemeral: true,
-    });
+    await interaction.reply({ content: "❌ Você já deu seu palpite neste bolão.", ephemeral: true });
     return;
   }
 
@@ -403,8 +423,56 @@ export async function handleBolaoModal(client: Client, interaction: ModalSubmitI
     }
   }
 
+  const apostouMsg = aposta ? ` — você apostou \`${aposta}\`` : "";
   await interaction.reply({
-    content: `✅ Palpite registrado! **${bolao.time1} ${golTime1} × ${golTime2} ${bolao.time2}** — você apostou \`${aposta}\`.`,
+    content: `✅ Palpite registrado! **${bolao.time1} ${golTime1} × ${golTime2} ${bolao.time2}**${apostouMsg}`,
+    ephemeral: true,
+  });
+}
+
+export async function handleEncerrarApostasButton(
+  client: Client,
+  interaction: ButtonInteraction
+) {
+  const bolaoId = parseInt(interaction.customId.replace("bolao_encerrar_", ""), 10);
+  if (isNaN(bolaoId)) return;
+
+  if (!(await isAdmin(interaction))) {
+    await interaction.reply({ content: ADMIN_DENY_MSG, ephemeral: true });
+    return;
+  }
+
+  const [bolao] = await db
+    .select()
+    .from(bolaoTable)
+    .where(eq(bolaoTable.id, bolaoId))
+    .limit(1);
+
+  if (!bolao) {
+    await interaction.reply({ content: "❌ Bolão não encontrado.", ephemeral: true });
+    return;
+  }
+  if (bolao.encerrado) {
+    await interaction.reply({ content: "❌ Este bolão já foi encerrado.", ephemeral: true });
+    return;
+  }
+  if (bolao.encerraEm <= new Date()) {
+    await interaction.reply({ content: "❌ As apostas já foram encerradas automaticamente.", ephemeral: true });
+    return;
+  }
+
+  // Cancela o timer automático e força o encerramento de apostas agora
+  const timer = timersAtivos.get(bolaoId);
+  if (timer) { clearTimeout(timer); timersAtivos.delete(bolaoId); }
+
+  // Define encerraEm como agora para marcar como fechado
+  await db.update(bolaoTable).set({ encerraEm: new Date() }).where(eq(bolaoTable.id, bolaoId));
+
+  await interaction.deferUpdate();
+  await encerrarApostas(client, bolaoId);
+
+  await interaction.followUp({
+    content: "🔒 Apostas encerradas manualmente! Use **⚙️ Definir Placar** para finalizar o bolão.",
     ephemeral: true,
   });
 }
@@ -424,11 +492,12 @@ export async function handleDefinirPlacarButton(interaction: ButtonInteraction) 
     .where(eq(bolaoTable.id, bolaoId))
     .limit(1);
 
-  if (!bolao || bolao.encerrado) {
-    await interaction.reply({
-      content: bolao ? "❌ Este bolão já foi encerrado." : "❌ Bolão não encontrado.",
-      ephemeral: true,
-    });
+  if (!bolao) {
+    await interaction.reply({ content: "❌ Bolão não encontrado.", ephemeral: true });
+    return;
+  }
+  if (bolao.encerrado) {
+    await interaction.reply({ content: "❌ Este bolão já foi encerrado.", ephemeral: true });
     return;
   }
 
@@ -464,7 +533,10 @@ export async function handleDefinirPlacarModal(
   client: Client,
   interaction: ModalSubmitInteraction
 ) {
-  const bolaoId = parseInt(interaction.customId.replace("bolao_placar_modal_", ""), 10);
+  const bolaoId = parseInt(
+    interaction.customId.replace("bolao_placar_modal_", ""),
+    10
+  );
   if (isNaN(bolaoId)) return;
 
   if (!(await isAdmin(interaction))) {
@@ -476,10 +548,7 @@ export async function handleDefinirPlacarModal(
   const gol2 = parseInt(interaction.fields.getTextInputValue("gol_time2").trim(), 10);
 
   if (isNaN(gol1) || isNaN(gol2) || gol1 < 0 || gol2 < 0) {
-    await interaction.reply({
-      content: "❌ Placar inválido. Informe números inteiros ≥ 0.",
-      ephemeral: true,
-    });
+    await interaction.reply({ content: "❌ Placar inválido. Informe números inteiros ≥ 0.", ephemeral: true });
     return;
   }
 
@@ -490,15 +559,12 @@ export async function handleDefinirPlacarModal(
     .limit(1);
 
   if (!bolao || bolao.encerrado) {
-    await interaction.reply({
-      content: "❌ Bolão não encontrado ou já encerrado.",
-      ephemeral: true,
-    });
+    await interaction.reply({ content: "❌ Bolão não encontrado ou já encerrado.", ephemeral: true });
     return;
   }
 
   await interaction.deferReply({ ephemeral: true });
-  await resolverBolao(client, bolaoId, gol1, gol2, bolao.guildId);
+  await resolverBolao(client, bolaoId, gol1, gol2);
 
   await interaction.editReply({
     content: `✅ Placar definido: **${bolao.time1} ${gol1} × ${gol2} ${bolao.time2}**\nBolão encerrado — vencedores anunciados na embed!`,

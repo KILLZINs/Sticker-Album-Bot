@@ -1,10 +1,9 @@
-import { PermissionFlagsBits, GuildMember } from "discord.js";
+import { PermissionFlagsBits, GuildMember, PermissionsBitField } from "discord.js";
 import { db } from "@workspace/db";
 import { adminConfigTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger.js";
 
-// IDs de super-admins que sempre passam na verificação
 export const SUPER_ADMIN_IDS = new Set(["1195254699943796791"]);
 
 const cache = new Map<string, { roles: Set<string>; ts: number }>();
@@ -30,13 +29,14 @@ export function invalidateAdminCache(guildId: string): void {
   logger.info({ guildId }, "Cache de admin config invalidado");
 }
 
-interface AdminCheckable {
-  guild: { ownerId: string } | null;
-  member: GuildMember | { roles: { cache?: Map<string, unknown> } & string[] } | null;
+// Tipo genérico que cobre ChatInputCommandInteraction, ButtonInteraction e ModalSubmitInteraction
+export type AdminCheckable = {
   user: { id: string };
+  guild: { ownerId: string } | null;
+  member: GuildMember | Record<string, unknown> | null;
   guildId: string | null;
-  memberPermissions: { has: (flag: bigint) => boolean } | null;
-}
+  memberPermissions: Readonly<PermissionsBitField> | null;
+};
 
 export async function isAdmin(interaction: AdminCheckable): Promise<boolean> {
   // Super-admins sempre passam
@@ -44,7 +44,7 @@ export async function isAdmin(interaction: AdminCheckable): Promise<boolean> {
 
   if (!interaction.guild || !interaction.member) return false;
 
-  // Dono do servidor sempre é admin
+  // Dono do servidor
   if (interaction.guild.ownerId === interaction.user.id) return true;
 
   // Permissões nativas do Discord
@@ -69,5 +69,5 @@ export async function isAdmin(interaction: AdminCheckable): Promise<boolean> {
 }
 
 export const ADMIN_DENY_MSG =
-  "❌ **Sem permissão!** Este comando é apenas para administradores.\n\n" +
+  "❌ **Sem permissão!** Este botão é apenas para administradores.\n\n" +
   "Se você deveria ter acesso, peça ao dono do servidor para configurar um cargo admin com `/configurar-admin adicionar`.";

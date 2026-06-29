@@ -43,6 +43,7 @@ import { refreshExpiredUrlsInGuild } from "./lib/refresh-urls.js";
 import {
   handleBolaoButton,
   handleBolaoModal,
+  handleEncerrarApostasButton,
   handleDefinirPlacarButton,
   handleDefinirPlacarModal,
   restaurarTimersBolao,
@@ -76,7 +77,7 @@ export async function startBot() {
   });
 
   client.once("ready", (c) => {
-    logger.info({ tag: c.user.tag }, "🤖 Bot do Álbum de Figurinhas online!");
+    logger.info({ tag: c.user.tag }, "🤖 Bot online!");
 
     restaurarTimersBolao(c).catch((err) =>
       logger.warn({ err }, "Erro ao restaurar timers de bolões")
@@ -109,27 +110,34 @@ export async function startBot() {
   });
 
   client.on("interactionCreate", async (interaction: Interaction) => {
-    // ── Bolão: Botão de palpite ──
+
+    // ── Bolão: Botão palpite ──
     if (interaction.isButton() && interaction.customId.startsWith("bolao_palpite_")) {
-      await handleBolaoButton(interaction).catch((err) => logger.error({ err }, "Erro botão palpite bolão"));
+      await handleBolaoButton(interaction).catch((err) => logger.error({ err }, "Erro botão palpite"));
+      return;
+    }
+
+    // ── Bolão: Botão encerrar apostas (admin) ──
+    if (interaction.isButton() && interaction.customId.startsWith("bolao_encerrar_")) {
+      await handleEncerrarApostasButton(client, interaction).catch((err) => logger.error({ err }, "Erro botão encerrar"));
       return;
     }
 
     // ── Bolão: Botão definir placar (admin) ──
     if (interaction.isButton() && interaction.customId.startsWith("bolao_placar_")) {
-      await handleDefinirPlacarButton(interaction).catch((err) => logger.error({ err }, "Erro botão placar bolão"));
+      await handleDefinirPlacarButton(interaction).catch((err) => logger.error({ err }, "Erro botão placar"));
       return;
     }
 
-    // ── Bolão: Modal de palpite ──
+    // ── Bolão: Modal palpite ──
     if (interaction.isModalSubmit() && interaction.customId.startsWith("bolao_modal_")) {
-      await handleBolaoModal(client, interaction).catch((err) => logger.error({ err }, "Erro modal palpite bolão"));
+      await handleBolaoModal(client, interaction).catch((err) => logger.error({ err }, "Erro modal palpite"));
       return;
     }
 
     // ── Bolão: Modal definir placar (admin) ──
     if (interaction.isModalSubmit() && interaction.customId.startsWith("bolao_placar_modal_")) {
-      await handleDefinirPlacarModal(client, interaction).catch((err) => logger.error({ err }, "Erro modal placar bolão"));
+      await handleDefinirPlacarModal(client, interaction).catch((err) => logger.error({ err }, "Erro modal placar"));
       return;
     }
 
@@ -187,7 +195,7 @@ export async function startBot() {
       return;
     }
 
-    // ── Abrir Pacote: navegação ──
+    // ── Abrir Pacote ──
     if (interaction.isButton() && (
       interaction.customId.startsWith("pacote_prev_") ||
       interaction.customId.startsWith("pacote_next_") ||
