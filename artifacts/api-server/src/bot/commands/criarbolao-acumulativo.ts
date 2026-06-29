@@ -35,11 +35,10 @@ export const data = new SlashCommandBuilder()
       .setDescription("Nome do segundo time (ex: Vasco)")
       .setRequired(true)
   )
-  .addIntegerOption((opt) =>
+  .addStringOption((opt) =>
     opt
       .setName("valor_minimo")
-      .setDescription("Valor mínimo de aposta em moedas (ex: 100)")
-      .setMinValue(1)
+      .setDescription("Valor mínimo de aposta (ex: R$ 10, 500 pts, 1 crédito)")
       .setRequired(true)
   );
 
@@ -52,7 +51,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const tempo = interaction.options.getInteger("tempo", true);
   const time1 = interaction.options.getString("time1", true).trim();
   const time2 = interaction.options.getString("time2", true).trim();
-  const valorMinimo = interaction.options.getInteger("valor_minimo", true);
+  const valorMinimo = interaction.options.getString("valor_minimo", true).trim();
 
   await interaction.deferReply();
 

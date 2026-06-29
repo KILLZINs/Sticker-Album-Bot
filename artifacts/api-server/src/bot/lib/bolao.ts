@@ -9,14 +9,17 @@ import {
   TextInputStyle,
   ButtonInteraction,
   ModalSubmitInteraction,
-  Colors,
 } from "discord.js";
 import { db } from "@workspace/db";
 import { bolaoTable, palpitesBolaoTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "./logger.js";
 import { isAdmin, ADMIN_DENY_MSG } from "./admin-check.js";
-import { deductMoedas, addMoedas } from "./moedas.js";
+
+// Cores do tema roxo
+const COR_ATIVO     = 0x9B59B6; // roxo vibrante
+const COR_AGUARDANDO = 0x6C3483; // roxo escuro
+const COR_ENCERRADO  = 0x7D3C98; // roxo médio
 
 const timersAtivos = new Map<number, ReturnType<typeof setTimeout>>();
 
@@ -42,116 +45,105 @@ export async function gerarEmbedBolao(bolaoId: number) {
     .from(palpitesBolaoTable)
     .where(eq(palpitesBolaoTable.bolaoId, bolaoId));
 
-  const totalApostado = palpites.reduce((acc, p) => acc + p.apostado, 0);
-  const premioExibido =
-    bolao.tipo === "acumulativo"
-      ? `${totalApostado} moedas (acumulado)`
-      : `${bolao.premio} moedas`;
-
   const aberto = apostasAbertas(bolao);
+  const tipo = bolao.tipo === "normal" ? "🏆 Normal" : "📈 Acumulativo";
 
-  let color = Colors.Gold;
-  if (bolao.encerrado) color = Colors.DarkGreen;
-  else if (!aberto) color = Colors.Orange;
+  let cor = COR_ATIVO;
+  if (bolao.encerrado) cor = COR_ENCERRADO;
+  else if (!aberto) cor = COR_AGUARDANDO;
 
+  // ── Cabeçalho ──
   const embed = new EmbedBuilder()
-    .setTitle(`⚽ Bolão: ${bolao.time1} 🆚 ${bolao.time2}`)
-    .setColor(color)
-    .addFields(
-      {
-        name: "🏷️ Tipo",
-        value: bolao.tipo === "normal" ? "Normal (prêmio fixo)" : "Acumulativo",
-        inline: true,
-      },
-      {
-        name: "💰 Prêmio",
-        value: premioExibido,
-        inline: true,
-      },
-      {
-        name: "💸 Aposta mínima",
-        value: `${bolao.valorMinimo} moedas`,
-        inline: true,
-      }
+    .setColor(cor)
+    .setTitle(`⚽  ${bolao.time1}  ×  ${bolao.time2}`)
+    .setDescription(
+      [
+        `> ${tipo}  •  ID \`#${bolao.id}\``,
+        "",
+        bolao.encerrado
+          ? `**✅ Bolão encerrado**`
+          : aberto
+          ? `**🟢 Apostas abertas** — encerram <t:${unixTimestamp(bolao.encerraEm)}:R>`
+          : `**🔴 Apostas encerradas** — aguardando placar do admin`,
+      ].join("\n")
     );
 
-  if (aberto) {
-    embed.addFields({
-      name: "⏰ Apostas encerram",
-      value: `<t:${unixTimestamp(bolao.encerraEm)}:R> (<t:${unixTimestamp(bolao.encerraEm)}:T>)`,
-      inline: false,
-    });
-  } else if (!bolao.encerrado) {
-    embed.addFields({
-      name: "🔒 Status",
-      value: "Apostas encerradas — aguardando placar do admin",
-      inline: false,
-    });
+  // ── Prêmio / valor mínimo ──
+  if (bolao.tipo === "normal" && bolao.premio) {
+    embed.addFields(
+      { name: "🎖️ Prêmio", value: `\`${bolao.premio}\``, inline: true },
+      { name: "💸 Aposta mínima", value: `\`${bolao.valorMinimo}\``, inline: true }
+    );
+  } else {
+    embed.addFields(
+      { name: "📈 Prêmio", value: "Acumulativo (soma das apostas)", inline: true },
+      { name: "💸 Aposta mínima", value: `\`${bolao.valorMinimo}\``, inline: true }
+    );
   }
 
+  // ── Placar atual / final ──
   if (bolao.golTime1 !== null && bolao.golTime2 !== null) {
     embed.addFields({
-      name: "📊 Placar atual",
-      value: `**${bolao.time1} ${bolao.golTime1} × ${bolao.golTime2} ${bolao.time2}**`,
+      name: bolao.encerrado ? "🏁 Placar Final" : "📊 Placar atual",
+      value: `## ${bolao.time1}  **${bolao.golTime1}** — **${bolao.golTime2}**  ${bolao.time2}`,
       inline: false,
     });
   }
 
+  // ── Separador visual ──
+  embed.addFields({ name: "\u200B", value: "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬", inline: false });
+
+  // ── Lista de palpites ──
   if (palpites.length === 0) {
     embed.addFields({
-      name: `📋 Palpites (0)`,
+      name: `📋 Palpites — 0 participantes`,
       value: aberto
-        ? "Nenhum palpite ainda. Clique em **🎯 Dar palpite** para participar!"
-        : "Nenhum palpite foi registrado.",
+        ? "*Nenhum palpite ainda. Seja o primeiro!*"
+        : "*Nenhum palpite foi registrado.*",
       inline: false,
     });
   } else {
     const lista = palpites
-      .map(
-        (p) =>
-          `> 🎯 **${p.username}** — ${p.golTime1} × ${p.golTime2} *(${p.apostado} moedas)*`
-      )
+      .map((p) => `> 🎯 **${p.username}** — \`${p.golTime1} × ${p.golTime2}\`  •  apostou \`${p.apostado}\``)
       .join("\n");
     embed.addFields({
-      name: `📋 Palpites (${palpites.length})`,
+      name: `📋 Palpites — ${palpites.length} participante${palpites.length !== 1 ? "s" : ""}`,
       value: lista.slice(0, 1024),
       inline: false,
     });
   }
 
+  // ── Resultado (se encerrado) ──
   if (bolao.encerrado && bolao.golTime1 !== null && bolao.golTime2 !== null) {
     const corretos = palpites.filter(
       (p) => p.golTime1 === bolao.golTime1 && p.golTime2 === bolao.golTime2
     );
-    const premioFinal =
-      bolao.tipo === "acumulativo" ? totalApostado : (bolao.premio ?? 0);
 
-    embed.addFields({
-      name: "🏁 Placar final",
-      value: `**${bolao.time1} ${bolao.golTime1} × ${bolao.golTime2} ${bolao.time2}**`,
-      inline: false,
-    });
+    embed.addFields({ name: "\u200B", value: "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬", inline: false });
 
     if (corretos.length === 0) {
       embed.addFields({
-        name: "😔 Vencedores",
-        value: "Nenhum acertou o placar exato. As moedas foram devolvidas a todos!",
+        name: "😔 Resultado",
+        value: "Nenhum participante acertou o placar exato.",
         inline: false,
       });
     } else {
-      const ganho = Math.floor(premioFinal / corretos.length);
-      const lista = corretos
-        .map((p) => `> 🥇 **${p.username}** — ganhou **${ganho} moedas!**`)
+      const vencedores = corretos
+        .map((p) => `> 🥇 **${p.username}** — acertou \`${p.golTime1} × ${p.golTime2}\` (apostou \`${p.apostado}\`)`)
         .join("\n");
       embed.addFields({
-        name: `🏆 Vencedores (${corretos.length})`,
-        value: lista.slice(0, 1024),
+        name: `🏆 Vencedor${corretos.length !== 1 ? "es" : ""} — ${corretos.length} pessoa${corretos.length !== 1 ? "s" : ""}`,
+        value: vencedores.slice(0, 1024),
         inline: false,
       });
     }
-
-    embed.setFooter({ text: "✅ Bolão encerrado" });
   }
+
+  embed.setFooter({
+    text: bolao.encerrado
+      ? "✅ Bolão encerrado • Prêmio a cargo do admin"
+      : "🎯 Clique em Dar palpite para participar!",
+  });
 
   return embed;
 }
@@ -178,7 +170,6 @@ export function criarBotoesAguardando(bolaoId: number): ActionRowBuilder<ButtonB
   );
 }
 
-// Chamado quando o timer expira — fecha as apostas mas não distribui prêmios
 export async function encerrarApostas(client: Client, bolaoId: number) {
   try {
     const [bolao] = await db
@@ -196,10 +187,7 @@ export async function encerrarApostas(client: Client, bolaoId: number) {
           const msg = await (channel as any).messages.fetch(bolao.messageId);
           const embed = await gerarEmbedBolao(bolaoId);
           if (embed) {
-            await msg.edit({
-              embeds: [embed],
-              components: [criarBotoesAguardando(bolaoId)],
-            });
+            await msg.edit({ embeds: [embed], components: [criarBotoesAguardando(bolaoId)] });
           }
         }
       } catch (e) {
@@ -214,7 +202,6 @@ export async function encerrarApostas(client: Client, bolaoId: number) {
   }
 }
 
-// Chamado pelo admin — distribui prêmios e marca como encerrado
 export async function resolverBolao(
   client: Client,
   bolaoId: number,
@@ -235,29 +222,6 @@ export async function resolverBolao(
     .set({ golTime1: gol1, golTime2: gol2, encerrado: true })
     .where(eq(bolaoTable.id, bolaoId));
 
-  const palpites = await db
-    .select()
-    .from(palpitesBolaoTable)
-    .where(eq(palpitesBolaoTable.bolaoId, bolaoId));
-
-  const corretos = palpites.filter(
-    (p) => p.golTime1 === gol1 && p.golTime2 === gol2
-  );
-  const totalApostado = palpites.reduce((acc, p) => acc + p.apostado, 0);
-  const premioFinal =
-    bolao.tipo === "acumulativo" ? totalApostado : (bolao.premio ?? 0);
-
-  if (corretos.length === 0) {
-    for (const p of palpites) {
-      await addMoedas(guildId, p.userId, p.username, p.apostado);
-    }
-  } else {
-    const ganho = Math.floor(premioFinal / corretos.length);
-    for (const p of corretos) {
-      await addMoedas(guildId, p.userId, p.username, ganho);
-    }
-  }
-
   if (bolao.channelId && bolao.messageId) {
     try {
       const channel = await client.channels.fetch(bolao.channelId);
@@ -272,7 +236,7 @@ export async function resolverBolao(
   }
 
   timersAtivos.delete(bolaoId);
-  logger.info({ bolaoId, gol1, gol2 }, "Bolão resolvido com sucesso");
+  logger.info({ bolaoId, gol1, gol2, guildId }, "Bolão resolvido");
 }
 
 export function agendarEncerramentoApostas(client: Client, bolaoId: number, encerraEm: Date) {
@@ -369,10 +333,10 @@ export async function handleBolaoButton(interaction: ButtonInteraction) {
     new ActionRowBuilder<TextInputBuilder>().addComponents(
       new TextInputBuilder()
         .setCustomId("aposta")
-        .setLabel(`Valor apostado (mínimo: ${bolao.valorMinimo} moedas)`)
+        .setLabel(`Quanto você está apostando (mínimo: ${bolao.valorMinimo})`)
         .setStyle(TextInputStyle.Short)
         .setPlaceholder(`Ex: ${bolao.valorMinimo}`)
-        .setMinLength(1).setMaxLength(6).setRequired(true)
+        .setMinLength(1).setMaxLength(50).setRequired(true)
     )
   );
 
@@ -385,7 +349,7 @@ export async function handleBolaoModal(client: Client, interaction: ModalSubmitI
 
   const golTime1 = parseInt(interaction.fields.getTextInputValue("gol_time1").trim(), 10);
   const golTime2 = parseInt(interaction.fields.getTextInputValue("gol_time2").trim(), 10);
-  const aposta = parseInt(interaction.fields.getTextInputValue("aposta").trim(), 10);
+  const aposta = interaction.fields.getTextInputValue("aposta").trim();
 
   if (isNaN(golTime1) || isNaN(golTime2) || golTime1 < 0 || golTime2 < 0) {
     await interaction.reply({
@@ -409,24 +373,6 @@ export async function handleBolaoModal(client: Client, interaction: ModalSubmitI
     return;
   }
 
-  if (isNaN(aposta) || aposta < bolao.valorMinimo) {
-    await interaction.reply({
-      content: `❌ Valor inválido. O mínimo é **${bolao.valorMinimo} moedas**.`,
-      ephemeral: true,
-    });
-    return;
-  }
-
-  try {
-    await deductMoedas(bolao.guildId, interaction.user.id, interaction.user.username, aposta);
-  } catch {
-    await interaction.reply({
-      content: `❌ Saldo insuficiente. Você precisa de **${aposta} moedas** para apostar.`,
-      ephemeral: true,
-    });
-    return;
-  }
-
   try {
     await db.insert(palpitesBolaoTable).values({
       bolaoId,
@@ -437,7 +383,6 @@ export async function handleBolaoModal(client: Client, interaction: ModalSubmitI
       apostado: aposta,
     });
   } catch {
-    await addMoedas(bolao.guildId, interaction.user.id, interaction.user.username, aposta);
     await interaction.reply({
       content: "❌ Você já deu seu palpite neste bolão.",
       ephemeral: true,
@@ -459,7 +404,7 @@ export async function handleBolaoModal(client: Client, interaction: ModalSubmitI
   }
 
   await interaction.reply({
-    content: `✅ Palpite registrado! **${bolao.time1} ${golTime1} × ${golTime2} ${bolao.time2}** — apostou **${aposta} moedas**.`,
+    content: `✅ Palpite registrado! **${bolao.time1} ${golTime1} × ${golTime2} ${bolao.time2}** — você apostou \`${aposta}\`.`,
     ephemeral: true,
   });
 }
@@ -479,14 +424,9 @@ export async function handleDefinirPlacarButton(interaction: ButtonInteraction) 
     .where(eq(bolaoTable.id, bolaoId))
     .limit(1);
 
-  if (!bolao) {
-    await interaction.reply({ content: "❌ Bolão não encontrado.", ephemeral: true });
-    return;
-  }
-
-  if (bolao.encerrado) {
+  if (!bolao || bolao.encerrado) {
     await interaction.reply({
-      content: "❌ Este bolão já foi encerrado e o placar definido.",
+      content: bolao ? "❌ Este bolão já foi encerrado." : "❌ Bolão não encontrado.",
       ephemeral: true,
     });
     return;
@@ -494,28 +434,25 @@ export async function handleDefinirPlacarButton(interaction: ButtonInteraction) 
 
   const modal = new ModalBuilder()
     .setCustomId(`bolao_placar_modal_${bolaoId}`)
-    .setTitle(`⚙️ Definir Placar: ${bolao.time1} × ${bolao.time2}`);
-
-  const atual1 = bolao.golTime1 !== null ? String(bolao.golTime1) : "";
-  const atual2 = bolao.golTime2 !== null ? String(bolao.golTime2) : "";
+    .setTitle(`⚙️ Placar final: ${bolao.time1} × ${bolao.time2}`);
 
   modal.addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(
       new TextInputBuilder()
         .setCustomId("gol_time1")
-        .setLabel(`Gols do ${bolao.time1} (placar final)`)
+        .setLabel(`Gols do ${bolao.time1}`)
         .setStyle(TextInputStyle.Short)
         .setPlaceholder("Ex: 2")
-        .setValue(atual1)
+        .setValue(bolao.golTime1 !== null ? String(bolao.golTime1) : "")
         .setMinLength(1).setMaxLength(2).setRequired(true)
     ),
     new ActionRowBuilder<TextInputBuilder>().addComponents(
       new TextInputBuilder()
         .setCustomId("gol_time2")
-        .setLabel(`Gols do ${bolao.time2} (placar final)`)
+        .setLabel(`Gols do ${bolao.time2}`)
         .setStyle(TextInputStyle.Short)
         .setPlaceholder("Ex: 1")
-        .setValue(atual2)
+        .setValue(bolao.golTime2 !== null ? String(bolao.golTime2) : "")
         .setMinLength(1).setMaxLength(2).setRequired(true)
     )
   );
@@ -527,10 +464,7 @@ export async function handleDefinirPlacarModal(
   client: Client,
   interaction: ModalSubmitInteraction
 ) {
-  const bolaoId = parseInt(
-    interaction.customId.replace("bolao_placar_modal_", ""),
-    10
-  );
+  const bolaoId = parseInt(interaction.customId.replace("bolao_placar_modal_", ""), 10);
   if (isNaN(bolaoId)) return;
 
   if (!(await isAdmin(interaction))) {
@@ -564,10 +498,9 @@ export async function handleDefinirPlacarModal(
   }
 
   await interaction.deferReply({ ephemeral: true });
-
   await resolverBolao(client, bolaoId, gol1, gol2, bolao.guildId);
 
   await interaction.editReply({
-    content: `✅ Placar definido: **${bolao.time1} ${gol1} × ${gol2} ${bolao.time2}**\nPrêmios distribuídos e bolão encerrado!`,
+    content: `✅ Placar definido: **${bolao.time1} ${gol1} × ${gol2} ${bolao.time2}**\nBolão encerrado — vencedores anunciados na embed!`,
   });
 }
