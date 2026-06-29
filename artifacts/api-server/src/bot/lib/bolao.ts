@@ -518,25 +518,26 @@ export async function handleDefinirPlacarButton(interaction: ButtonInteraction) 
     .setCustomId(`bolao_placar_modal_${bolaoId}`)
     .setTitle(`⚙️ Placar final: ${bolao.time1} × ${bolao.time2}`);
 
+  // setValue só pode ser chamado com string não-vazia no discord.js
+  const input1 = new TextInputBuilder()
+    .setCustomId("gol_time1")
+    .setLabel(`Gols do ${bolao.time1}`)
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("Ex: 2")
+    .setMinLength(1).setMaxLength(2).setRequired(true);
+  if (bolao.golTime1 !== null) input1.setValue(String(bolao.golTime1));
+
+  const input2 = new TextInputBuilder()
+    .setCustomId("gol_time2")
+    .setLabel(`Gols do ${bolao.time2}`)
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("Ex: 1")
+    .setMinLength(1).setMaxLength(2).setRequired(true);
+  if (bolao.golTime2 !== null) input2.setValue(String(bolao.golTime2));
+
   modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder()
-        .setCustomId("gol_time1")
-        .setLabel(`Gols do ${bolao.time1}`)
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("Ex: 2")
-        .setValue(bolao.golTime1 !== null ? String(bolao.golTime1) : "")
-        .setMinLength(1).setMaxLength(2).setRequired(true)
-    ),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder()
-        .setCustomId("gol_time2")
-        .setLabel(`Gols do ${bolao.time2}`)
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("Ex: 1")
-        .setValue(bolao.golTime2 !== null ? String(bolao.golTime2) : "")
-        .setMinLength(1).setMaxLength(2).setRequired(true)
-    )
+    new ActionRowBuilder<TextInputBuilder>().addComponents(input1),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(input2)
   );
 
   await interaction.showModal(modal);

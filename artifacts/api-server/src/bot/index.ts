@@ -111,33 +111,34 @@ export async function startBot() {
 
   client.on("interactionCreate", async (interaction: Interaction) => {
 
-    // ── Bolão: Botão palpite ──
+    // ── Bolão: handlers com fallback de erro ──
+    const safeReply = async (i: typeof interaction, err: unknown) => {
+      logger.error({ err, customId: (i as any).customId }, "Erro em handler de bolão");
+      const msg = { content: "❌ Ocorreu um erro interno. Tente novamente.", ephemeral: true };
+      try {
+        if ((i as any).deferred) await (i as any).followUp(msg);
+        else if (!(i as any).replied) await (i as any).reply(msg);
+      } catch { /* interação expirada, ignora */ }
+    };
+
     if (interaction.isButton() && interaction.customId.startsWith("bolao_palpite_")) {
-      await handleBolaoButton(interaction).catch((err) => logger.error({ err }, "Erro botão palpite"));
+      await handleBolaoButton(interaction).catch((err) => safeReply(interaction, err));
       return;
     }
-
-    // ── Bolão: Botão encerrar apostas (admin) ──
     if (interaction.isButton() && interaction.customId.startsWith("bolao_encerrar_")) {
-      await handleEncerrarApostasButton(client, interaction).catch((err) => logger.error({ err }, "Erro botão encerrar"));
+      await handleEncerrarApostasButton(client, interaction).catch((err) => safeReply(interaction, err));
       return;
     }
-
-    // ── Bolão: Botão definir placar (admin) ──
     if (interaction.isButton() && interaction.customId.startsWith("bolao_placar_")) {
-      await handleDefinirPlacarButton(interaction).catch((err) => logger.error({ err }, "Erro botão placar"));
+      await handleDefinirPlacarButton(interaction).catch((err) => safeReply(interaction, err));
       return;
     }
-
-    // ── Bolão: Modal palpite ──
     if (interaction.isModalSubmit() && interaction.customId.startsWith("bolao_modal_")) {
-      await handleBolaoModal(client, interaction).catch((err) => logger.error({ err }, "Erro modal palpite"));
+      await handleBolaoModal(client, interaction).catch((err) => safeReply(interaction, err));
       return;
     }
-
-    // ── Bolão: Modal definir placar (admin) ──
     if (interaction.isModalSubmit() && interaction.customId.startsWith("bolao_placar_modal_")) {
-      await handleDefinirPlacarModal(client, interaction).catch((err) => logger.error({ err }, "Erro modal placar"));
+      await handleDefinirPlacarModal(client, interaction).catch((err) => safeReply(interaction, err));
       return;
     }
 
