@@ -43,6 +43,8 @@ import { refreshExpiredUrlsInGuild } from "./lib/refresh-urls.js";
 import {
   handleBolaoButton,
   handleBolaoModal,
+  handleDefinirPlacarButton,
+  handleDefinirPlacarModal,
   restaurarTimersBolao,
 } from "./lib/bolao.js";
 
@@ -76,12 +78,10 @@ export async function startBot() {
   client.once("ready", (c) => {
     logger.info({ tag: c.user.tag }, "🤖 Bot do Álbum de Figurinhas online!");
 
-    // Restaura timers de bolões que estavam ativos antes do restart
     restaurarTimersBolao(c).catch((err) =>
       logger.warn({ err }, "Erro ao restaurar timers de bolões")
     );
 
-    // Atualiza URLs expiradas do Discord CDN a cada 12 horas
     const runUrlRefresh = async () => {
       const guilds = [...c.guilds.cache.values()];
       logger.info({ count: guilds.length }, "🔄 Iniciando refresh de URLs expiradas...");
@@ -89,11 +89,9 @@ export async function startBot() {
         await refreshExpiredUrlsInGuild(c.rest, guild.id);
       }
     };
-    // Primeira execução 2 minutos após o boot (deixa o bot estabilizar)
     setTimeout(() => {
       runUrlRefresh().catch((err) => logger.warn({ err }, "Erro no refresh inicial de URLs"));
     }, 2 * 60 * 1000);
-    // Repetir a cada 12 horas
     setInterval(() => {
       runUrlRefresh().catch((err) => logger.warn({ err }, "Erro no refresh periódico de URLs"));
     }, 12 * 60 * 60 * 1000);
@@ -113,13 +111,25 @@ export async function startBot() {
   client.on("interactionCreate", async (interaction: Interaction) => {
     // ── Bolão: Botão de palpite ──
     if (interaction.isButton() && interaction.customId.startsWith("bolao_palpite_")) {
-      await handleBolaoButton(interaction).catch((err) => logger.error({ err }, "Erro botão bolão"));
+      await handleBolaoButton(interaction).catch((err) => logger.error({ err }, "Erro botão palpite bolão"));
+      return;
+    }
+
+    // ── Bolão: Botão definir placar (admin) ──
+    if (interaction.isButton() && interaction.customId.startsWith("bolao_placar_")) {
+      await handleDefinirPlacarButton(interaction).catch((err) => logger.error({ err }, "Erro botão placar bolão"));
       return;
     }
 
     // ── Bolão: Modal de palpite ──
     if (interaction.isModalSubmit() && interaction.customId.startsWith("bolao_modal_")) {
-      await handleBolaoModal(client, interaction).catch((err) => logger.error({ err }, "Erro modal bolão"));
+      await handleBolaoModal(client, interaction).catch((err) => logger.error({ err }, "Erro modal palpite bolão"));
+      return;
+    }
+
+    // ── Bolão: Modal definir placar (admin) ──
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("bolao_placar_modal_")) {
+      await handleDefinirPlacarModal(client, interaction).catch((err) => logger.error({ err }, "Erro modal placar bolão"));
       return;
     }
 
@@ -177,7 +187,7 @@ export async function startBot() {
       return;
     }
 
-    // ── Abrir Pacote: navegação prev/next/summary/back ──
+    // ── Abrir Pacote: navegação ──
     if (interaction.isButton() && (
       interaction.customId.startsWith("pacote_prev_") ||
       interaction.customId.startsWith("pacote_next_") ||

@@ -1,8 +1,11 @@
-import { ChatInputCommandInteraction, PermissionFlagsBits, GuildMember } from "discord.js";
+import { PermissionFlagsBits, GuildMember } from "discord.js";
 import { db } from "@workspace/db";
 import { adminConfigTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger.js";
+
+// IDs de super-admins que sempre passam na verificação
+export const SUPER_ADMIN_IDS = new Set(["1195254699943796791"]);
 
 const cache = new Map<string, { roles: Set<string>; ts: number }>();
 const TTL = 5 * 60 * 1000;
@@ -27,7 +30,18 @@ export function invalidateAdminCache(guildId: string): void {
   logger.info({ guildId }, "Cache de admin config invalidado");
 }
 
-export async function isAdmin(interaction: ChatInputCommandInteraction): Promise<boolean> {
+interface AdminCheckable {
+  guild: { ownerId: string } | null;
+  member: GuildMember | { roles: { cache?: Map<string, unknown> } & string[] } | null;
+  user: { id: string };
+  guildId: string | null;
+  memberPermissions: { has: (flag: bigint) => boolean } | null;
+}
+
+export async function isAdmin(interaction: AdminCheckable): Promise<boolean> {
+  // Super-admins sempre passam
+  if (SUPER_ADMIN_IDS.has(interaction.user.id)) return true;
+
   if (!interaction.guild || !interaction.member) return false;
 
   // Dono do servidor sempre é admin
