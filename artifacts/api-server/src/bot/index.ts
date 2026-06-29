@@ -37,7 +37,14 @@ import * as biografia from "./commands/biografia.js";
 import * as comparar from "./commands/comparar.js";
 import * as stats from "./commands/stats.js";
 import * as configurarAdmin from "./commands/configurar-admin.js";
+import * as criarBolaoNormal from "./commands/criarbolao-normal.js";
+import * as criarBolaoAcumulativo from "./commands/criarbolao-acumulativo.js";
 import { refreshExpiredUrlsInGuild } from "./lib/refresh-urls.js";
+import {
+  handleBolaoButton,
+  handleBolaoModal,
+  restaurarTimersBolao,
+} from "./lib/bolao.js";
 
 interface Command {
   data: SlashCommandOptionsOnlyBuilder;
@@ -50,6 +57,7 @@ const allCommands: Command[] = [
   help, saldo, darMoedas, atm, forceReset, repetidas, darFigurinha,
   configurarEmojis, configurarMoedas, configurarFigurinhas, modificarFigurinha,
   biografia, comparar, stats, configurarAdmin,
+  criarBolaoNormal, criarBolaoAcumulativo,
 ];
 
 const commandMap = new Collection<string, Command>();
@@ -67,6 +75,11 @@ export async function startBot() {
 
   client.once("ready", (c) => {
     logger.info({ tag: c.user.tag }, "🤖 Bot do Álbum de Figurinhas online!");
+
+    // Restaura timers de bolões que estavam ativos antes do restart
+    restaurarTimersBolao(c).catch((err) =>
+      logger.warn({ err }, "Erro ao restaurar timers de bolões")
+    );
 
     // Atualiza URLs expiradas do Discord CDN a cada 12 horas
     const runUrlRefresh = async () => {
@@ -98,6 +111,18 @@ export async function startBot() {
   });
 
   client.on("interactionCreate", async (interaction: Interaction) => {
+    // ── Bolão: Botão de palpite ──
+    if (interaction.isButton() && interaction.customId.startsWith("bolao_palpite_")) {
+      await handleBolaoButton(interaction).catch((err) => logger.error({ err }, "Erro botão bolão"));
+      return;
+    }
+
+    // ── Bolão: Modal de palpite ──
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("bolao_modal_")) {
+      await handleBolaoModal(client, interaction).catch((err) => logger.error({ err }, "Erro modal bolão"));
+      return;
+    }
+
     // ── Emojis: Select Menus ──
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith("emoji_sel_")) {
       await configurarEmojis.handleEmojiSelect(interaction).catch((err) => logger.error({ err }, "Erro emoji select"));
