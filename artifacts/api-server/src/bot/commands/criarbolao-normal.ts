@@ -16,12 +16,37 @@ import {
 export const data = new SlashCommandBuilder()
   .setName("criarbolao-normal")
   .setDescription("Cria um bolão com prêmio fixo. Somente admins.")
+  .addIntegerOption((opt) =>
+    opt
+      .setName("tempo")
+      .setDescription("Duração das apostas em minutos (ex: 60)")
+      .setMinValue(1)
+      .setRequired(true)
+  )
   .addStringOption((opt) =>
     opt
-      .setName("dados")
-      .setDescription(
-        "Formato: tempo(min);time1;time2;valor_minimo;premio  Ex: 60;Flamengo;Vasco;100;500"
-      )
+      .setName("time1")
+      .setDescription("Nome do primeiro time (ex: Flamengo)")
+      .setRequired(true)
+  )
+  .addStringOption((opt) =>
+    opt
+      .setName("time2")
+      .setDescription("Nome do segundo time (ex: Vasco)")
+      .setRequired(true)
+  )
+  .addIntegerOption((opt) =>
+    opt
+      .setName("valor_minimo")
+      .setDescription("Valor mínimo de aposta em moedas (ex: 100)")
+      .setMinValue(1)
+      .setRequired(true)
+  )
+  .addIntegerOption((opt) =>
+    opt
+      .setName("premio")
+      .setDescription("Prêmio fixo para os vencedores em moedas (ex: 500)")
+      .setMinValue(1)
       .setRequired(true)
   );
 
@@ -31,36 +56,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return;
   }
 
-  const raw = interaction.options.getString("dados", true);
-  const partes = raw.split(";").map((p) => p.trim());
-
-  if (partes.length !== 5) {
-    await interaction.reply({
-      content:
-        "❌ Formato inválido! Use:\n`tempo(min);time1;time2;valor_minimo;premio`\n\nExemplo: `60;Flamengo;Vasco;100;500`\n\n> O placar real será definido por um admin após o jogo com o botão **⚙️ Definir Placar**.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const [tempoStr, time1, time2, valorMinStr, premioStr] = partes;
-  const tempo = parseInt(tempoStr, 10);
-  const valorMinimo = parseInt(valorMinStr, 10);
-  const premio = parseInt(premioStr, 10);
-
-  if (
-    isNaN(tempo) || tempo <= 0 ||
-    !time1 || !time2 ||
-    isNaN(valorMinimo) || valorMinimo <= 0 ||
-    isNaN(premio) || premio <= 0
-  ) {
-    await interaction.reply({
-      content:
-        "❌ Dados inválidos!\n• `tempo` deve ser um número positivo (minutos)\n• `valor_minimo` e `premio` devem ser números positivos",
-      ephemeral: true,
-    });
-    return;
-  }
+  const tempo = interaction.options.getInteger("tempo", true);
+  const time1 = interaction.options.getString("time1", true).trim();
+  const time2 = interaction.options.getString("time2", true).trim();
+  const valorMinimo = interaction.options.getInteger("valor_minimo", true);
+  const premio = interaction.options.getInteger("premio", true);
 
   await interaction.deferReply();
 
