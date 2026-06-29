@@ -12,6 +12,7 @@ export const bolaoTable = pgTable("bolao", {
   golTime2: integer("gol_time2"),
   valorMinimo: text("valor_minimo").notNull(),
   premio: text("premio"),
+  adicional: text("adicional"),   // acumulativo: valor somado ao prêmio por participante
   tipo: text("tipo").notNull(),
   encerraEm: timestamp("encerra_em").notNull(),
   encerrado: boolean("encerrado").notNull().default(false),

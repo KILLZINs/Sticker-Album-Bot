@@ -15,7 +15,7 @@ import {
 
 export const data = new SlashCommandBuilder()
   .setName("criarbolao-acumulativo")
-  .setDescription("Cria um bolão cujo prêmio cresce com cada aposta. Somente admins.")
+  .setDescription("Cria um bolão cujo prêmio cresce a cada participante. Somente admins.")
   .addIntegerOption((opt) =>
     opt
       .setName("tempo")
@@ -38,8 +38,14 @@ export const data = new SlashCommandBuilder()
   .addStringOption((opt) =>
     opt
       .setName("valor_minimo")
-      .setDescription("Valor mínimo de aposta (ex: R$ 10, 500 pts, 1 crédito)")
+      .setDescription("Valor mínimo de aposta (0 = livre, ex: R$ 10, 500 pts)")
       .setRequired(true)
+  )
+  .addStringOption((opt) =>
+    opt
+      .setName("adicional")
+      .setDescription("Valor adicionado ao prêmio por cada participante (ex: R$ 10, 50 pts)")
+      .setRequired(false)
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
@@ -52,6 +58,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const time1 = interaction.options.getString("time1", true).trim();
   const time2 = interaction.options.getString("time2", true).trim();
   const valorMinimo = interaction.options.getString("valor_minimo", true).trim();
+  const adicional = interaction.options.getString("adicional")?.trim() ?? null;
 
   await interaction.deferReply();
 
@@ -72,6 +79,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       golTime2: null,
       valorMinimo,
       premio: null,
+      adicional,
       tipo: "acumulativo",
       encerraEm,
       encerrado: false,
@@ -93,5 +101,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   agendarEncerramentoApostas(interaction.client, bolao.id, encerraEm);
 
-  logger.info({ bolaoId: bolao.id, guildId: interaction.guildId, tempo }, "Bolão acumulativo criado");
+  logger.info({ bolaoId: bolao.id, guildId: interaction.guildId, tempo, adicional }, "Bolão acumulativo criado");
 }
