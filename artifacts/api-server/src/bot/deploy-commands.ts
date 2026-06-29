@@ -28,6 +28,8 @@ import * as modificarFigurinha from "./commands/modificar-figurinha.js";
 import * as stats from "./commands/stats.js";
 import * as adicionar from "./commands/adicionar.js";
 import * as configurarAdmin from "./commands/configurar-admin.js";
+import * as criarBolaoNormal from "./commands/criarbolao-normal.js";
+import * as criarBolaoAcumulativo from "./commands/criarbolao-acumulativo.js";
 
 const commands = [
   criarFigurinha.data,
@@ -58,6 +60,8 @@ const commands = [
   stats.data,
   adicionar.data,
   configurarAdmin.data,
+  criarBolaoNormal.data,
+  criarBolaoAcumulativo.data,
 ].map((cmd) => cmd.toJSON());
 
 export async function deployCommands() {
