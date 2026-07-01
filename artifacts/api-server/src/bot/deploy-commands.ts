@@ -17,6 +17,7 @@ import * as saldo from "./commands/saldo.js";
 import * as darMoedas from "./commands/dar-moedas.js";
 import * as atm from "./commands/atm.js";
 import * as forceReset from "./commands/forcereset.js";
+import * as forceResetAll from "./commands/forceresetall.js";
 import * as repetidas from "./commands/repetidas.js";
 import * as darFigurinha from "./commands/dar-figurinha.js";
 import * as biografia from "./commands/biografia.js";
@@ -49,6 +50,7 @@ const commands = [
   darMoedas.data,
   atm.data,
   forceReset.data,
+  forceResetAll.data,
   repetidas.data,
   darFigurinha.data,
   biografia.data,

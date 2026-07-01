@@ -27,6 +27,7 @@ import * as saldo from "./commands/saldo.js";
 import * as darMoedas from "./commands/dar-moedas.js";
 import * as atm from "./commands/atm.js";
 import * as forceReset from "./commands/forcereset.js";
+import * as forceResetAll from "./commands/forceresetall.js";
 import * as repetidas from "./commands/repetidas.js";
 import * as darFigurinha from "./commands/dar-figurinha.js";
 import * as configurarEmojis from "./commands/configurar-emojis.js";
@@ -57,7 +58,7 @@ interface Command {
 const allCommands: Command[] = [
   criarFigurinha, desbloquear, abrirPacote, catalogo, verAlbum, figurinhas,
   ranking, trocar, conquistas, rebirth, removerFigurinha, apagarFigurinha,
-  help, saldo, darMoedas, atm, forceReset, repetidas, darFigurinha,
+  help, saldo, darMoedas, atm, forceReset, forceResetAll, repetidas, darFigurinha,
   configurarEmojis, configurarMoedas, configurarFigurinhas, modificarFigurinha,
   biografia, comparar, stats, configurarAdmin,
   criarBolaoNormal, criarBolaoAcumulativo,
