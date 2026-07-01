@@ -101,6 +101,13 @@ export async function startBot() {
 
   client.on("messageCreate", async (message) => {
     if (message.author.bot || !message.guildId) return;
+
+    // Easter egg: resposta ao criador
+    if (message.content.toLowerCase().includes("skyritas quem é teu criador")) {
+      await message.reply("<@1195254699943796791> né tropa").catch(() => {});
+      return;
+    }
+
     try {
       const moedaCfg = await getGuildMoedaConfig(message.guildId);
       if (message.content.length < moedaCfg.comprimentoMinMensagem) return;
