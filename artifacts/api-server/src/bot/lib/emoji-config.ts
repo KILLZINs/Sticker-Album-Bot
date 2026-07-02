@@ -53,15 +53,18 @@ export async function getGuildEmojis(guildId: string): Promise<GuildEmojis> {
   const cached = cache.get(guildId);
   if (cached && now - cached.ts < TTL) return cached.emojis;
 
-  const rows = await db.select().from(emojiConfigTable).where(eq(emojiConfigTable.guildId, guildId));
-
-  const emojis = { ...EMOJI_DEFAULTS } as GuildEmojis;
-  for (const row of rows) {
-    if (row.chave in emojis) (emojis as Record<string, string>)[row.chave] = row.emoji;
+  try {
+    const rows = await db.select().from(emojiConfigTable).where(eq(emojiConfigTable.guildId, guildId));
+    const emojis = { ...EMOJI_DEFAULTS } as GuildEmojis;
+    for (const row of rows) {
+      if (row.chave in emojis) (emojis as Record<string, string>)[row.chave] = row.emoji;
+    }
+    cache.set(guildId, { emojis, ts: now });
+    return emojis;
+  } catch (err) {
+    logger.warn({ err, guildId }, "Erro ao carregar emojis do DB, usando padrão");
+    return { ...EMOJI_DEFAULTS } as GuildEmojis;
   }
-
-  cache.set(guildId, { emojis, ts: now });
-  return emojis;
 }
 
 export function getRaridadeEmoji(emojis: GuildEmojis, raridade: string): string {

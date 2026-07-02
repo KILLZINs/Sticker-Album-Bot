@@ -46,11 +46,14 @@ export async function getGuildFigurinhaConfig(guildId: string): Promise<GuildFig
   const cached = cache.get(guildId);
   if (cached && now - cached.ts < TTL) return cached.config;
 
-  const rows = await db.select().from(figurinhaConfigTable).where(eq(figurinhaConfigTable.guildId, guildId));
-
-  const raw: Record<string, string> = { ...FIGURINHA_CONFIG_DEFAULTS };
-  for (const row of rows) {
-    if (row.chave in raw) raw[row.chave] = row.valor;
+  let raw: Record<string, string> = { ...FIGURINHA_CONFIG_DEFAULTS };
+  try {
+    const rows = await db.select().from(figurinhaConfigTable).where(eq(figurinhaConfigTable.guildId, guildId));
+    for (const row of rows) {
+      if (row.chave in raw) raw[row.chave] = row.valor;
+    }
+  } catch (err) {
+    logger.warn({ err, guildId }, "Erro ao carregar figurinha config do DB, usando padrão");
   }
 
   const config: GuildFigurinhaConfig = {

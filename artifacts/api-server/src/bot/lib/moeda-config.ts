@@ -31,14 +31,17 @@ export async function getGuildMoedaConfig(guildId: string): Promise<GuildMoedaCo
   const cached = cache.get(guildId);
   if (cached && now - cached.ts < TTL) return cached.config;
 
-  const rows = await db
-    .select()
-    .from(moedaConfigTable)
-    .where(eq(moedaConfigTable.guildId, guildId));
-
-  const raw: Record<string, string> = { ...MOEDA_DEFAULTS };
-  for (const row of rows) {
-    if (row.chave in raw) raw[row.chave] = row.valor;
+  let raw: Record<string, string> = { ...MOEDA_DEFAULTS };
+  try {
+    const rows = await db
+      .select()
+      .from(moedaConfigTable)
+      .where(eq(moedaConfigTable.guildId, guildId));
+    for (const row of rows) {
+      if (row.chave in raw) raw[row.chave] = row.valor;
+    }
+  } catch (err) {
+    logger.warn({ err, guildId }, "Erro ao carregar moeda config do DB, usando padrão");
   }
 
   const config: GuildMoedaConfig = {
