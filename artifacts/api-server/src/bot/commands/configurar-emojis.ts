@@ -114,6 +114,13 @@ const MENU_CONQUISTAS_KEYS: EmojiChave[] = [
   "conquista_rebirth_prata", "conquista_rebirth_ouro", "conquista_primeira_troca", "conquista_cinco_trocas",
 ];
 
+
+function parseEmojiOption(emojiStr: string): { name: string; id?: string; animated?: boolean } {
+  const custom = emojiStr.match(/^<(a?):([w]+):(d+)>$/);
+  if (custom) return { animated: custom[1] === 'a', name: custom[2]!, id: custom[3]! };
+  return { name: emojiStr };
+}
+
 function buildComponents(emojis: GuildEmojis, msgId: string): ActionRowBuilder<any>[] {
   const menuGeral = new StringSelectMenuBuilder()
     .setCustomId(`emoji_sel_geral_${msgId}`)
@@ -122,7 +129,7 @@ function buildComponents(emojis: GuildEmojis, msgId: string): ActionRowBuilder<a
       label: NOMES_CHAVES[chave],
       value: chave,
       description: `Atual: ${emojis[chave]}`,
-      emoji: { name: emojis[chave].replace(/<a?:(\w+):\d+>/, "$1") },
+      emoji: parseEmojiOption(emojis[chave]),
     })));
 
   const menuConquistas = new StringSelectMenuBuilder()
