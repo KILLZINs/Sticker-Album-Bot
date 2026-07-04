@@ -92,6 +92,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const embed = new EmbedBuilder()
         .setTitle(`${emojiRaridade} #${fig.numero} — ${fig.titulo}`)
         .setDescription(
+          (fig.descricao ? `*${fig.descricao}*\n\n` : "") +
           `Raridade: **${fig.raridade}**\n` +
           `Status: ${status}\n\n` +
           `**Progresso de ${alvoUser.username}:** ${totalDesbloqueadas}/${total} (**${progresso}%**)` +
