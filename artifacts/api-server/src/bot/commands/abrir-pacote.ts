@@ -63,6 +63,7 @@ function buildPackEmbed(
     .setTitle(`${packEmoji} ${packNome} de ${username}`)
     .setDescription(
       `${emoji} **${fig.titulo}**\n` +
+      (fig.descricao ? `*${fig.descricao}*\n` : "") +
       `Raridade: **${fig.raridade}** *(${chance})*` +
       (isFigurinhaSecreta(fig.titulo) ? `\n\n🔒 *Figurinha secreta — a imagem não é revelada.*` : ""),
     )
