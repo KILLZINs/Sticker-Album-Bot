@@ -12,6 +12,7 @@ import { catalogoFigurinhasTable, colecaoUsuarioTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
+import { refreshAttachmentUrls } from "../lib/refresh-attachments.js";
 
 export const data = new SlashCommandBuilder()
   .setName("catalogo")
@@ -20,7 +21,15 @@ export const data = new SlashCommandBuilder()
     opt.setName("usuario").setDescription("Ver progresso de outro usuário").setRequired(false)
   );
 
-const PAGE_SIZE = 10;
+function getRaridadeColor(raridade: string): number {
+  switch (raridade) {
+    case "incomum": return 0x57f287;
+    case "rara": return 0x5865f2;
+    case "épica": return 0x470f78;
+    case "lendária": return 0xf1c40f;
+    default: return 0x99aab5;
+  }
+}
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
@@ -58,36 +67,38 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const desbloqueadosIds = new Set(colecao.map((c) => c.catalogoId));
     const totalDesbloqueadas = desbloqueadosIds.size;
 
-    const totalPages = Math.ceil(catalogo.length / PAGE_SIZE);
+    // Renova URLs expiradas da CDN do Discord antes de exibir
+    const refreshMap = await refreshAttachmentUrls(
+      interaction.client,
+      catalogo.map((f) => f.imageUrl).filter(Boolean) as string[],
+    );
+    const figurinhas = refreshMap.size > 0
+      ? catalogo.map((f) => ({ ...f, imageUrl: f.imageUrl ? (refreshMap.get(f.imageUrl) ?? f.imageUrl) : f.imageUrl }))
+      : catalogo;
+
+    const total = figurinhas.length;
     let page = 0;
 
     const buildEmbed = (p: number) => {
-      const inicio = p * PAGE_SIZE;
-      const pagina = catalogo.slice(inicio, inicio + PAGE_SIZE);
+      const fig = figurinhas[p]!;
+      const emojiRaridade = getRaridadeEmoji(emojis, fig.raridade);
+      const desbloqueada = desbloqueadosIds.has(fig.id);
+      const status = desbloqueada ? "✅ Coletada" : "⬜ Ainda não coletada";
+      const progresso = Math.round((totalDesbloqueadas / total) * 100);
 
-      const linhas = pagina.map((fig) => {
-        const emoji = getRaridadeEmoji(emojis, fig.raridade);
-        const status = desbloqueadosIds.has(fig.id) ? "✅" : "⬜";
-        return `${status} ${emoji} **#${fig.numero}** — ${fig.titulo}`;
-      });
-
-      const progresso = Math.round((totalDesbloqueadas / catalogo.length) * 100);
-      const barraLen = 18;
-      const preenchido = Math.round((progresso / 100) * barraLen);
-      const barra = "█".repeat(preenchido) + "░".repeat(barraLen - preenchido);
-
-      return new EmbedBuilder()
-        .setTitle(`📖 Catálogo — ${interaction.guild?.name ?? "Servidor"}`)
+      const embed = new EmbedBuilder()
+        .setTitle(`${emojiRaridade} #${fig.numero} — ${fig.titulo}`)
         .setDescription(
-          `**Progresso de ${alvoUser.username}:**\n` +
-          `\`${barra}\` ${totalDesbloqueadas}/${catalogo.length} (**${progresso}%**)\n\n` +
-          linhas.join("\n"),
+          `Raridade: **${fig.raridade}**\n` +
+          `Status: ${status}\n\n` +
+          `**Progresso de ${alvoUser.username}:** ${totalDesbloqueadas}/${total} (**${progresso}%**)`
         )
-        .setColor(0x470f78)
-        .setThumbnail(alvoUser.displayAvatarURL())
-        .setFooter({
-          text: `Página ${p + 1} de ${totalPages} · ✅ coletada · ⬜ faltando`,
-        });
+        .setColor(getRaridadeColor(fig.raridade))
+        .setFooter({ text: `📖 Catálogo — ${interaction.guild?.name ?? "Servidor"} · Figurinha ${p + 1} de ${total}` });
+
+      if (fig.imageUrl) embed.setImage(fig.imageUrl);
+
+      return embed;
     };
 
     const buildRow = (p: number) =>
@@ -99,32 +110,32 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           .setDisabled(p === 0),
         new ButtonBuilder()
           .setCustomId("cat_page")
-          .setLabel(`${p + 1} / ${totalPages}`)
+          .setLabel(`${p + 1} / ${total}`)
           .setStyle(ButtonStyle.Primary)
           .setDisabled(true),
         new ButtonBuilder()
           .setCustomId("cat_next")
           .setLabel("Próxima ▶")
           .setStyle(ButtonStyle.Secondary)
-          .setDisabled(p === totalPages - 1),
+          .setDisabled(p === total - 1),
       );
 
     const msg = await interaction.editReply({
       embeds: [buildEmbed(page)],
-      components: totalPages > 1 ? [buildRow(page)] : [],
+      components: total > 1 ? [buildRow(page)] : [],
     });
 
-    if (totalPages <= 1) return;
+    if (total <= 1) return;
 
     const collector = msg.createMessageComponentCollector({
       componentType: ComponentType.Button,
-      time: 120_000,
+      time: 180_000,
       filter: (i) => i.user.id === interaction.user.id,
     });
 
     collector.on("collect", async (i) => {
       if (i.customId === "cat_prev" && page > 0) page--;
-      if (i.customId === "cat_next" && page < totalPages - 1) page++;
+      if (i.customId === "cat_next" && page < total - 1) page++;
       await i.update({ embeds: [buildEmbed(page)], components: [buildRow(page)] });
     });
 
