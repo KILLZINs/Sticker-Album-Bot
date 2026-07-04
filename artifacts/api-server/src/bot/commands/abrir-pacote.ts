@@ -14,6 +14,7 @@ import { logger } from "../lib/logger.js";
 import { verificarConquistas, anunciarConquistas } from "../lib/conquistas.js";
 import { getSaldo, deductMoedas, getNivelRebirth, PACKS, NIVEL_NOME, calcularPreco, type TipoPacote } from "../lib/moedas.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
+import { getImagemExibicao, isFigurinhaSecreta } from "../lib/figurinha-display.js";
 import { getGuildMoedaConfig } from "../lib/moeda-config.js";
 import { refreshAttachmentUrls } from "../lib/refresh-attachments.js";
 
@@ -56,13 +57,14 @@ function buildPackEmbed(
   const isFirst = page === 0;
   const isLast = page === total - 1;
 
-  const imageUrl = fig.imageUrl || null;
+  const imageUrl = getImagemExibicao(fig.titulo, fig.imageUrl || null);
 
   const embed = new EmbedBuilder()
     .setTitle(`${packEmoji} ${packNome} de ${username}`)
     .setDescription(
       `${emoji} **${fig.titulo}**\n` +
-      `Raridade: **${fig.raridade}** *(${chance})*`,
+      `Raridade: **${fig.raridade}** *(${chance})*` +
+      (isFigurinhaSecreta(fig.titulo) ? `\n\n🔒 *Figurinha secreta — a imagem não é revelada.*` : ""),
     )
     .setImage(imageUrl)
     .setColor(getRaridadeColor(fig.raridade))

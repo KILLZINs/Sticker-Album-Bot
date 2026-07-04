@@ -12,6 +12,7 @@ import { colecaoUsuarioTable, catalogoFigurinhasTable } from "@workspace/db";
 import { eq, and, ilike, countDistinct } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
+import { getImagemExibicao, isFigurinhaSecreta } from "../lib/figurinha-display.js";
 
 export const data = new SlashCommandBuilder()
   .setName("ver-album")
@@ -107,6 +108,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const raridadeTitle = fig.raridade.charAt(0).toUpperCase() + fig.raridade.slice(1);
       const desbloqueado = fig.desbloqueadoEm.toLocaleDateString("pt-BR");
 
+      const secreta = isFigurinhaSecreta(fig.titulo);
       return new EmbedBuilder()
         .setTitle(`📖 Álbum de ${alvoUser.username}${busca ? ` · Busca: "${busca}"` : ""}`)
         .setDescription(
@@ -114,9 +116,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           `┣ Raridade: **${raridadeTitle}**\n` +
           `┣ Catálogo: **#${fig.numero}**\n` +
           `┗ Desbloqueada em **${desbloqueado}**\n\n` +
-          (fig.descricao ? `*${fig.descricao}*` : "*Sem descrição*"),
+          (secreta ? `🔒 *Figurinha secreta — a imagem não é revelada.*` : (fig.descricao ? `*${fig.descricao}*` : "*Sem descrição*")),
         )
-        .setImage(fig.imageUrl)
+        .setImage(getImagemExibicao(fig.titulo, fig.imageUrl))
         .setColor(getRaridadeColor(fig.raridade))
         .setThumbnail(alvoUser.displayAvatarURL())
         .setFooter({ text: `${unicas.length}/${totalCatalogo} únicas (${pct}%) · Figurinha ${idx + 1} de ${unicas.length}` })

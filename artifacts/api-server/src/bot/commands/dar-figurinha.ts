@@ -9,6 +9,7 @@ import { eq, and, count, sql } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { verificarConquistas, anunciarConquistas } from "../lib/conquistas.js";
 import { getGuildEmojis, getRaridadeEmoji, getNivelDisplay } from "../lib/emoji-config.js";
+import { getImagemExibicao, isFigurinhaSecreta } from "../lib/figurinha-display.js";
 import { getNivelRebirth } from "../lib/moedas.js";
 import { getGuildFigurinhaConfig } from "../lib/figurinha-config.js";
 
@@ -137,9 +138,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         `${emoji} **${catalogoEntry.titulo}** foi para <@${destino.id}>!\n\n` +
         `┣ Raridade: **${raridadeTitle}**\n` +
         `┣ Catálogo: **#${catalogoEntry.numero}**\n` +
-        `┗ Cópias restantes com você: **${copiasRestantes}**`,
+        `┗ Cópias restantes com você: **${copiasRestantes}**` +
+        (isFigurinhaSecreta(catalogoEntry.titulo) ? `\n\n🔒 *Figurinha secreta — a imagem não é revelada.*` : ""),
       )
-      .setImage(catalogoEntry.imageUrl)
+      .setImage(getImagemExibicao(catalogoEntry.titulo, catalogoEntry.imageUrl))
       .setColor(0x2ecc71)
       .setThumbnail(destino.displayAvatarURL())
       .addFields(

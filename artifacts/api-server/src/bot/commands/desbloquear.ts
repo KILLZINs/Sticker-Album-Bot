@@ -8,6 +8,7 @@ import { catalogoFigurinhasTable, colecaoUsuarioTable } from "@workspace/db";
 import { eq, and, ilike } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
+import { getImagemExibicao, isFigurinhaSecreta } from "../lib/figurinha-display.js";
 import { isAdmin, ADMIN_DENY_MSG } from "../lib/admin-check.js";
 
 export const data = new SlashCommandBuilder()
@@ -123,8 +124,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       embeds: [
         new EmbedBuilder()
           .setTitle(`🎁 Figurinha concedida por um admin!`)
-          .setDescription(`<@${alvo.id}> recebeu a figurinha **${emoji} ${figurinha.titulo}**!`)
-          .setImage(figurinha.imageUrl)
+          .setDescription(
+            `<@${alvo.id}> recebeu a figurinha **${emoji} ${figurinha.titulo}**!` +
+            (isFigurinhaSecreta(figurinha.titulo) ? `\n\n🔒 *Figurinha secreta — a imagem não é revelada.*` : ""),
+          )
+          .setImage(getImagemExibicao(figurinha.titulo, figurinha.imageUrl))
           .setColor(getRaridadeColor(figurinha.raridade))
           .setFooter({ text: `Concedida por ${interaction.user.username}` })
           .setTimestamp(),

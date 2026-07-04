@@ -12,6 +12,7 @@ import { catalogoFigurinhasTable, colecaoUsuarioTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { getGuildEmojis, getRaridadeEmoji } from "../lib/emoji-config.js";
+import { isFigurinhaSecreta } from "../lib/figurinha-display.js";
 import { refreshAttachmentUrls } from "../lib/refresh-attachments.js";
 
 export const data = new SlashCommandBuilder()
@@ -86,17 +87,20 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const status = desbloqueada ? "✅ Coletada" : "⬜ Ainda não coletada";
       const progresso = Math.round((totalDesbloqueadas / total) * 100);
 
+      const secreta = isFigurinhaSecreta(fig.titulo);
+
       const embed = new EmbedBuilder()
         .setTitle(`${emojiRaridade} #${fig.numero} — ${fig.titulo}`)
         .setDescription(
           `Raridade: **${fig.raridade}**\n` +
           `Status: ${status}\n\n` +
-          `**Progresso de ${alvoUser.username}:** ${totalDesbloqueadas}/${total} (**${progresso}%**)`
+          `**Progresso de ${alvoUser.username}:** ${totalDesbloqueadas}/${total} (**${progresso}%**)` +
+          (secreta ? `\n\n🔒 *Figurinha secreta — a imagem não é revelada.*` : "")
         )
         .setColor(getRaridadeColor(fig.raridade))
         .setFooter({ text: `📖 Catálogo — ${interaction.guild?.name ?? "Servidor"} · Figurinha ${p + 1} de ${total}` });
 
-      if (fig.imageUrl) embed.setImage(fig.imageUrl);
+      if (fig.imageUrl && !secreta) embed.setImage(fig.imageUrl);
 
       return embed;
     };
