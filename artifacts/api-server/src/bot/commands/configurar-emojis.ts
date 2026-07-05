@@ -179,14 +179,17 @@ export async function handleEmojiSelect(interaction: StringSelectMenuInteraction
   const nome = NOMES_CHAVES[chave] ?? chave;
   const defaultEmoji = EMOJI_DEFAULTS[chave] ?? "❓";
 
+  const labelBase = `Novo emoji para "${nome}"`;
+  const label = labelBase.length > 45 ? `${labelBase.slice(0, 44)}…` : labelBase;
+
   const modal = new ModalBuilder()
     .setCustomId(`emoji_modal_${chave}_${msgId}`)
-    .setTitle(`Configurar: ${nome}`)
+    .setTitle((`Configurar: ${nome}`).slice(0, 45))
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
           .setCustomId("emoji_input")
-          .setLabel(`Novo emoji para "${nome}"`)
+          .setLabel(label)
           .setPlaceholder(`Padrão: ${defaultEmoji}   Ex: 💎  ou  <:nome:123456789012345678>`)
           .setStyle(TextInputStyle.Short)
           .setMinLength(1)
