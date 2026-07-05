@@ -47,6 +47,8 @@ import {
   handleEncerrarApostasButton,
   handleDefinirPlacarButton,
   handleDefinirPlacarModal,
+  handleEditarPremioButton,
+  handleEditarPremioModal,
   restaurarTimersBolao,
 } from "./lib/bolao.js";
 
@@ -147,6 +149,14 @@ export async function startBot() {
     }
     if (interaction.isModalSubmit() && interaction.customId.startsWith("bolao_placar_modal_")) {
       await handleDefinirPlacarModal(client, interaction).catch((err) => safeReply(interaction, err));
+      return;
+    }
+    if (interaction.isButton() && interaction.customId.startsWith("bolao_editarpremio_")) {
+      await handleEditarPremioButton(interaction).catch((err) => safeReply(interaction, err));
+      return;
+    }
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("bolao_premio_modal_")) {
+      await handleEditarPremioModal(client, interaction).catch((err) => safeReply(interaction, err));
       return;
     }
 

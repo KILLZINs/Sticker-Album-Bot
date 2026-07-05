@@ -205,6 +205,10 @@ export function criarBotoesAtivo(bolaoId: number): ActionRowBuilder<ButtonBuilde
     new ButtonBuilder()
       .setCustomId(`bolao_placar_${bolaoId}`)
       .setLabel("⚙️ Definir Placar")
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`bolao_editarpremio_${bolaoId}`)
+      .setLabel("✏️ Editar Prêmio")
       .setStyle(ButtonStyle.Secondary)
   );
 }
@@ -214,7 +218,11 @@ export function criarBotoesAguardando(bolaoId: number): ActionRowBuilder<ButtonB
     new ButtonBuilder()
       .setCustomId(`bolao_placar_${bolaoId}`)
       .setLabel("⚙️ Definir Placar e Finalizar")
-      .setStyle(ButtonStyle.Danger)
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(`bolao_editarpremio_${bolaoId}`)
+      .setLabel("✏️ Editar Prêmio")
+      .setStyle(ButtonStyle.Secondary)
   );
 }
 
@@ -558,6 +566,105 @@ export async function handleDefinirPlacarButton(interaction: ButtonInteraction) 
   );
 
   await interaction.showModal(modal);
+}
+
+export async function handleEditarPremioButton(interaction: ButtonInteraction) {
+  const bolaoId = parseInt(interaction.customId.replace("bolao_editarpremio_", ""), 10);
+  if (isNaN(bolaoId)) return;
+
+  if (!(await isAdmin(interaction))) {
+    await interaction.reply({ content: ADMIN_DENY_MSG, ephemeral: true });
+    return;
+  }
+
+  const [bolao] = await db
+    .select()
+    .from(bolaoTable)
+    .where(eq(bolaoTable.id, bolaoId))
+    .limit(1);
+
+  if (!bolao) {
+    await interaction.reply({ content: "❌ Bolão não encontrado.", ephemeral: true });
+    return;
+  }
+
+  const acumulativo = bolao.tipo === "acumulativo";
+  const label = acumulativo ? "Valor adicional por participante" : "Novo prêmio";
+  const placeholder = acumulativo ? "Ex: R$ 10" : "Ex: R$ 200, 1 mês premium";
+  const valorAtual = acumulativo ? bolao.adicional : bolao.premio;
+
+  const modal = new ModalBuilder()
+    .setCustomId(`bolao_premio_modal_${bolaoId}`)
+    .setTitle(`✏️ Editar prêmio: ${bolao.time1} × ${bolao.time2}`.slice(0, 45));
+
+  const input = new TextInputBuilder()
+    .setCustomId("premio")
+    .setLabel(label.slice(0, 45))
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder(placeholder)
+    .setMinLength(1)
+    .setMaxLength(200)
+    .setRequired(true);
+  if (valorAtual) input.setValue(valorAtual);
+
+  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
+
+  await interaction.showModal(modal);
+}
+
+export async function handleEditarPremioModal(
+  client: Client,
+  interaction: ModalSubmitInteraction
+) {
+  const bolaoId = parseInt(interaction.customId.replace("bolao_premio_modal_", ""), 10);
+  if (isNaN(bolaoId)) return;
+
+  if (!(await isAdmin(interaction))) {
+    await interaction.reply({ content: ADMIN_DENY_MSG, ephemeral: true });
+    return;
+  }
+
+  const [bolao] = await db
+    .select()
+    .from(bolaoTable)
+    .where(eq(bolaoTable.id, bolaoId))
+    .limit(1);
+
+  if (!bolao) {
+    await interaction.reply({ content: "❌ Bolão não encontrado.", ephemeral: true });
+    return;
+  }
+
+  const novoValor = interaction.fields.getTextInputValue("premio").trim();
+  const acumulativo = bolao.tipo === "acumulativo";
+
+  await db
+    .update(bolaoTable)
+    .set(acumulativo ? { adicional: novoValor } : { premio: novoValor })
+    .where(eq(bolaoTable.id, bolaoId));
+
+  if (bolao.channelId && bolao.messageId) {
+    try {
+      const channel = await client.channels.fetch(bolao.channelId);
+      if (channel?.isTextBased()) {
+        const msg = await (channel as any).messages.fetch(bolao.messageId);
+        const embed = await gerarEmbedBolao(bolaoId);
+        const components = bolao.encerrado
+          ? []
+          : [apostasAbertas({ encerraEm: bolao.encerraEm, encerrado: bolao.encerrado }) ? criarBotoesAtivo(bolaoId) : criarBotoesAguardando(bolaoId)];
+        if (embed) await msg.edit({ embeds: [embed], components });
+      }
+    } catch (e) {
+      logger.warn({ err: e, bolaoId }, "Não foi possível atualizar embed após editar prêmio");
+    }
+  }
+
+  await interaction.reply({
+    content: `✅ Prêmio atualizado para: \`${novoValor}\``,
+    ephemeral: true,
+  });
+
+  logger.info({ bolaoId, novoValor }, "Prêmio do bolão editado");
 }
 
 export async function handleDefinirPlacarModal(
